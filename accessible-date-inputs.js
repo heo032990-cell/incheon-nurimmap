@@ -57,7 +57,7 @@
       if (enabled) input.focus(); else year.focus();
     }
     year.addEventListener("change", () => { rebuildDays(); syncNative(); }); month.addEventListener("change", () => { rebuildDays(); syncNative(); }); day.addEventListener("change", syncNative);
-    input.addEventListener("change", syncSelects); group.addEventListener("focusin", () => { const selected = year.value && month.value && day.value ? `${year.value}-${month.value}-${day.value}` : ""; if (input.value !== selected) syncSelects(); }); direct.addEventListener("click", () => setDirectMode(!group.classList.contains("isDirect")));
+    input.addEventListener("change", syncSelects); group.addEventListener("focusin", () => { if (input.value && input.value !== `${year.value}-${month.value}-${day.value}`) syncSelects(); }); direct.addEventListener("click", () => setDirectMode(!group.classList.contains("isDirect")));
     input.classList.add("scrollDateNative"); input.before(group); group.append(year, month, day, direct, input); syncSelects();
     input.tabIndex=-1;input.setAttribute('aria-hidden','true');direct.setAttribute('aria-label',title+' 직접 입력으로 전환');
     input.addEventListener('invalid',event=>{if(!group.classList.contains('isDirect')){event.preventDefault();year.focus();}});
@@ -69,3 +69,4 @@
   enhanceAll();
   new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach((node) => { if (node instanceof Element) enhanceAll(node); }))).observe(document.body, { childList: true, subtree: true });
 })();
+

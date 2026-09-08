@@ -1,0 +1,9 @@
+{
+  "name": "incheon-nurimmap",
+  "version": "78.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "test": "node --test tests/survey-core.test.mjs"
+  }
+}
