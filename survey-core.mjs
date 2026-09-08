@@ -16,7 +16,7 @@ export function validateSchema(s){
   if(q.type==="consent"&&q.blockRefusal&&!q.required)throw Error("미동의 시 접수를 제한하는 항목은 응답 필수로 설정해 주세요.");
   if(q.type==="consent"&&q.blockRefusal&&!q.help.trim())throw Error("미동의 시 접수가 제한되는 이유를 문항 설명에 적어 주세요.");
  }
- return {title:s.title.trim(),description:s.description,questions:s.questions.map(q=>({id:q.id,type:q.type,label:q.label,help:q.help,required:!!q.required,blockRefusal:!!q.blockRefusal,options:["radio","checkbox","select","rank"].includes(q.type)?q.options:[]}))};
+ return {title:s.title.trim(),description:s.description,questions:s.questions.map(q=>({id:q.id,type:q.type,label:q.label,help:q.help,pageBreakBefore:q.pageBreakBefore===true,required:!!q.required,blockRefusal:!!q.blockRefusal,options:["radio","checkbox","select","rank"].includes(q.type)?q.options:[]}))};
 }
 export function validateAnswers(schema,basic,answers){
  if(!basic||typeof basic.name!=="string"||!basic.name.trim()||basic.name.length>80)throw Error("이름을 확인해 주세요.");
@@ -53,3 +53,5 @@ export function printHTML(s,record){
  }).join("");
  return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>'+esc(s.title)+'</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:Arial,"Malgun Gothic",sans-serif;color:#183b38;font-size:10pt;line-height:1.65}h1{font-size:19pt}p{white-space:pre-wrap;overflow-wrap:anywhere}.basic,.questions{display:flex;flex-wrap:wrap;gap:10px}.basic{padding:12px;border:1px solid #8ea9a3;font-size:9pt}.basic>div{flex:1 1 160px}.question{flex:1 1 45%;border-bottom:1px solid #a9bcb6;padding:10px 0;break-inside:avoid;min-width:0;overflow-wrap:anywhere}.question.wide{flex-basis:100%}.question p{font-size:9pt;margin:4px 0}.answer{white-space:pre-wrap;min-height:28px}.question:has(.answer:empty){break-inside:auto}@media print{button{display:none}}</style><body><button onclick="window.print()">인쇄 / PDF 저장</button><h1>'+esc(s.title)+'</h1><p>'+esc(s.description)+'</p><div class="basic">'+basic+'</div><div class="questions">'+items+'</div></body></html>';
 }
+
+export function surveyPages(schema){const pages=[[]];for(const q of schema.questions){if(q.pageBreakBefore)pages.push([]);pages.at(-1).push(q);}return pages;}

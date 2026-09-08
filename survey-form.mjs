@@ -1,7 +1,8 @@
-import {esc,validateAnswers} from "./survey-core.mjs";
+import {esc,validateAnswers,surveyPages} from "./survey-core.mjs";
 const params=new URLSearchParams(location.search),preview=params.has("preview");
 const ticketKey='nurim-survey-ticket:'+params.get('program');
 let ticket=null;try{ticket=JSON.parse(sessionStorage.getItem(ticketKey)||'null');}catch{}
+let pageIndex=0,pages=[];
 let data,id=ticket?.id||crypto.randomUUID(),token=ticket?.token||crypto.randomUUID(),busy=false;
 const root=document.querySelector("main");
 async function call(action,body={}){const r=await fetch(window.INCHEON_SUPABASE.url+"/functions/v1/nurim-survey",{method:"POST",headers:{"Content-Type":"application/json",apikey:window.INCHEON_SUPABASE.publishableKey,Authorization:"Bearer "+window.NURIM_SURVEY_ANON_KEY},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||"처리하지 못했습니다.");return d;}
@@ -19,18 +20,45 @@ function field(q){
  return '<fieldset><legend>'+esc(q.label)+(q.required?' <span aria-label="필수">*</span>':"")+'</legend>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+html+'</fieldset>';
 }
 function render(){
- const s=data.schema;
- root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form><fieldset class="basic"><legend>신청자 기본정보</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+s.questions.map(field).join("")+'<p>상세 응답과 작성된 신청서는 기관의 Google Drive에 저장됩니다. 누림지도에는 이름·생년월일·연락처와 접수 관리정보가 기록됩니다.</p><p role="status" id="status"></p><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></form>';
+ const s=data.schema;pageIndex=0;pages=surveyPages(s);
+ root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"><legend>신청자 기본정보</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p>상세 응답과 작성된 신청서는 기관의 Google Drive에 저장됩니다. 누림지도에는 이름·생년월일·연락처와 접수 관리정보가 기록됩니다.</p><p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
  root.querySelector("form").onsubmit=submit;
+ root.querySelector("#previousPage").onclick=()=>{if(!busy){pageIndex--;showPage();}};
+ root.querySelector("#nextPage").onclick=()=>{if(!busy&&checkPage()){pageIndex++;showPage();}};
+ showPage(false);
+}
+function values(f,questions){
+ const answers={};for(const q of questions){
+  if(q.type==='notice')continue;
+  const controls=[...f.querySelectorAll('[name="answer_'+q.id+'"]')];
+  if(q.type==='rank'){const vals=controls.map(x=>x.value),gap=vals.indexOf('');if(gap>=0&&vals.slice(gap+1).some(Boolean))throw Error(q.label+': 1순위부터 빈칸 없이 선택해 주세요.');}
+  answers[q.id]=q.type==='checkbox'?controls.filter(x=>x.checked).map(x=>x.value):q.type==='rank'?controls.map(x=>x.value).filter(Boolean):['radio','consent'].includes(q.type)?controls.find(x=>x.checked)?.value||'':controls[0].value;
+ }return answers;
+}
+function basics(f){return {name:f.elements.namedItem('name').value.trim(),birth:f.elements.namedItem('birth').value,phone:f.elements.namedItem('phone').value.trim()};}
+function showPage(focus=true){
+ root.querySelectorAll('.surveyPage').forEach((el,i)=>{el.hidden=i!==pageIndex;});
+ root.querySelector('#pageProgress').textContent=(pageIndex+1)+' / '+pages.length+' 페이지';
+ root.querySelector('#previousPage').hidden=pageIndex===0;
+ root.querySelector('#nextPage').hidden=pageIndex===pages.length-1;
+ root.querySelector('button[type="submit"]').hidden=pageIndex!==pages.length-1;
+ root.querySelector('#status').textContent='';
+ const panel=root.querySelector('[data-page="'+pageIndex+'"]');panel.tabIndex=-1;
+ if(focus){panel.focus();window.scrollTo({top:0,behavior:'auto'});}
+}
+function checkPage(){
+ const f=root.querySelector('form'),panel=f.querySelector('[data-page="'+pageIndex+'"]');
+ try{
+  for(const input of panel.querySelectorAll('input,select,textarea')){if(!input.checkValidity()){input.reportValidity();return false;}}
+  validateAnswers({...data.schema,questions:pages[pageIndex]},basics(f),values(f,pages[pageIndex]));return true;
+ }catch(e){f.querySelector('#status').textContent=e.message;return false;}
 }
 async function submit(e){
- e.preventDefault();if(busy)return;const f=e.target,basic={name:f.elements.namedItem("name").value.trim(),birth:f.elements.namedItem("birth").value,phone:f.elements.namedItem("phone").value.trim()},answers={};
- for(const q of data.schema.questions){
-  const controls=[...f.querySelectorAll('[name="answer_'+q.id+'"]')];
-  if(q.type==='notice')continue;
-  if(q.type==='rank'){const values=controls.map(x=>x.value),gap=values.indexOf('');if(gap>=0&&values.slice(gap+1).some(Boolean)){f.querySelector('#status').textContent=q.label+': 1순위부터 빈칸 없이 선택해 주세요.';return;}}
-  answers[q.id]=q.type==="checkbox"?controls.filter(x=>x.checked).map(x=>x.value):q.type==="rank"?controls.map(x=>x.value).filter(Boolean):["radio","consent"].includes(q.type)?controls.find(x=>x.checked)?.value||"":controls[0].value;
- }
+ e.preventDefault();if(busy)return;
+ if(pageIndex<pages.length-1){if(checkPage()){pageIndex++;showPage();}return;}
+ if(!checkPage())return;
+ const f=e.target,basic=basics(f);let answers;
+ try{answers=values(f,data.schema.questions);}catch(err){f.querySelector('#status').textContent=err.message;return;}
  const status=f.querySelector("#status"),button=f.querySelector('button[type="submit"]');
  try{
   validateAnswers(data.schema,basic,answers);
