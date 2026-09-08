@@ -36,7 +36,7 @@
   const applicationStep = document.createElement("section");
   applicationStep.id = "programApplicationStep";
   applicationStep.className = "programWizardStep hidden";
-  applicationStep.innerHTML = '<div class="wizardStepTitle"><p class="smallLabel">2단계</p><h3 tabindex="-1">신청정보 받는 방법 설정</h3><p>개인정보 동의, 선택형 Google Form, 별도 신청서 파일 사용 여부를 정한 뒤 최종 저장해 주세요.</p></div>';
+  applicationStep.innerHTML = '<div class="wizardStepTitle"><p class="smallLabel">2단계</p><h3 tabindex="-1">신청 설문 선택</h3><p>설문 관리에서 만든 신청서를 선택하세요. 신청자는 누림지도 안에서 작성하고, 상세 응답과 출력본은 기관 Google Drive에 보관됩니다.</p></div>';
   applicationStep.append(consentBox, googleFormBox, fileBox);
   const backButton = document.createElement("button");
   backButton.id = "backProgramBasic";

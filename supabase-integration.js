@@ -1123,6 +1123,7 @@
       editingId,
       existingIds: new Set(programs.map((program) => program.id)),
       surveyId: window.NurimSurvey?.selected() || null,
+      surveyOwner: window.NurimSurvey?.selection()?.owner_id || null,
       title: document.querySelector("#programTitle").value.trim(),
       startDate: document.querySelector("#startDate").value,
       endDate: document.querySelector("#endDate").value,
@@ -1159,6 +1160,7 @@
           localStorage.setItem(keys.programs, JSON.stringify(programs));
         }
         savedProgram.surveyId = pending.surveyId;
+        if (currentProfile?.role === "super" && pending.surveyId && pending.surveyOwner && !pending.editingId) savedProgram.managerId = pending.surveyOwner;
         await upsertProgram(savedProgram);
         await saveGoogleFormVerificationConfig(savedProgram.id, pending.formVerification);
         await loadPublicPrograms();

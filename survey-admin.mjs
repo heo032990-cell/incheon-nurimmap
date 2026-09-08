@@ -1,7 +1,7 @@
 import {esc,types,validateSchema,csv,printHTML} from "./survey-core.mjs";
 const db=window.incheonSupabase;
 const flags=window.NURIM_FEATURES||{survey:true,charts:true,programAddress:true};
-let sessionGeneration=0,bindingRequest=0;
+let sessionGeneration=0,bindingRequest=0,activeQuestion=0,surveyRole="manager",centerChoice="",managerChoice="";
 let list=[],current=null,revision=0,saved=null,dirty=false,loadedUser=null,viewRows=[];
 async function api(action,body={}){const generation=sessionGeneration;const {data:{session}}=await db.auth.getSession();const r=await fetch(window.INCHEON_SUPABASE.url+"/functions/v1/nurim-survey",{method:"POST",headers:{"Content-Type":"application/json",apikey:window.INCHEON_SUPABASE.publishableKey,Authorization:"Bearer "+window.NURIM_SURVEY_ANON_KEY,...(session?{"x-nurim-user-token":session.access_token}:{})},body:JSON.stringify({action,...body})});const d=await r.json();if(generation!==sessionGeneration)throw Error("로그인 상태가 변경되었습니다.");if(!r.ok||!d.ok)throw Error(d.error||"처리하지 못했습니다.");return d;}
 function download(text,name,type){const a=document.createElement("a"),u=URL.createObjectURL(new Blob([text],{type}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
@@ -12,31 +12,42 @@ const originalTab=switchAdminTab;
 switchAdminTab=function(id){if(dirty&&id!=="surveyManage"&&!confirm("저장하지 않은 설문 수정이 있습니다. 다른 메뉴로 이동할까요?"))return;originalTab(id);section.classList.toggle("hidden",id!=="surveyManage");if(id==="surveyManage")refresh().catch(showError);};
 tab.hidden=flags.survey===false;tab.onclick=()=>switchAdminTab("surveyManage");
 function showError(e){alert(e.message||String(e));}
-const binding=document.createElement("section");binding.className="adminGoogleFormBox";binding.innerHTML='<h3>누림 설문 연결</h3><p>설문 관리에서 저장하고 Google에 배포한 설문을 선택하세요. 연결하면 이 프로그램의 신청 화면으로 사용됩니다.</p><label>신청 설문 <select id="nurimSurveyBinding"><option value="">기존 신청 방식 사용</option></select></label><p id="nurimProgramAddress"></p>';
-document.querySelector('#programApplicationStep .formActions').before(binding);
+const binding=document.createElement("section");binding.id="nurimSurveyBindingPanel";binding.className="adminGoogleFormBox";binding.innerHTML='<h3>누림 설문 연결</h3><p>우리가 만든 설문을 신청서로 사용합니다. 설문 관리에서 신청용으로 배포한 설문을 선택하세요.</p><label>신청 설문 <select id="nurimSurveyBinding"><option value="">신청 설문을 선택하세요</option></select></label><p id="nurimProgramAddress"></p>';
+document.querySelector('#programApplicationStep .wizardStepTitle').after(binding);
+const legacyBoxes=[...document.querySelectorAll('#programApplicationStep > .adminConsentBox,#programApplicationStep > .adminGoogleFormBox,#programApplicationStep > .adminFileBox')].filter(x=>x!==binding);legacyBoxes.forEach(x=>x.classList.add('legacyApplicationSettings'));
+binding.insertAdjacentHTML('beforeend','<div class="bindingActions"><button type="button" id="openSurveyBuilder">설문 만들기·관리</button><button type="button" id="reloadSurveyChoices">목록 새로고침</button></div><p id="surveyBindingStatus" role="status"></p>');
+document.querySelector('#openSurveyBuilder').onclick=()=>switchAdminTab('surveyManage');document.querySelector('#reloadSurveyChoices').onclick=()=>refreshBinding();
 const select=binding.querySelector("select");let bindingWanted="";
 async function refreshBinding(){
  const request=++bindingRequest,value=bindingWanted;select.disabled=true;
- try{const next=(await api("list")).surveys;if(request!==bindingRequest)return;list=next;select.innerHTML='<option value="">기존 신청 방식 사용</option>'+list.filter(s=>s.published_revision).map(s=>'<option value="'+s.id+'">'+esc(s.title)+'</option>').join("");
+ try{const response=await api("list",{scope:"manage"});surveyRole=response.role||"manager";const next=response.surveys;if(request!==bindingRequest)return;list=next;select.innerHTML='<option value="">신청 설문을 선택하세요</option>'+list.filter(s=>s.published_revision&&(!editingId||!programs.find(p=>p.id===editingId)?.managerId||s.owner_id===programs.find(p=>p.id===editingId)?.managerId)).map(s=>'<option value="'+s.id+'">'+esc((surveyRole==='super'?(s.center_name||'미지정')+' · '+(s.owner_name||'담당자')+' · ':'')+s.title)+'</option>').join("");
  if(value&&!list.some(s=>s.id===value)){const o=new Option("현재 연결된 설문 (다른 담당자 관리)",value);select.append(o);}
- select.value=value;select.disabled=false;
+ select.value=value;select.disabled=false;document.querySelector("#surveyBindingStatus").textContent=list.some(s=>s.published_revision)?"선택한 설문이 프로그램 신청 화면에 표시됩니다.":"아직 신청용으로 배포한 설문이 없습니다. 설문을 만든 뒤 신청용 배포를 해 주세요.";
  }catch(e){if(request!==bindingRequest)return;select.innerHTML='<option value="'+esc(value)+'">설문 목록을 불러오지 못했습니다</option>';select.value=value;}
 }
-const oldFill=fillProgram;fillProgram=function(p){oldFill(p);bindingWanted=p.surveyId||"";refreshBinding();binding.querySelector("p:last-child").textContent=p.publicNumber?"프로그램 주소: "+location.origin+programPath(p):"저장하면 프로그램 주소가 자동 생성됩니다.";};
+const oldFill=fillProgram;fillProgram=function(p){oldFill(p);bindingWanted=p.surveyId||"";refreshBinding();binding.querySelector("#nurimProgramAddress").textContent=p.publicNumber?"프로그램 주소: "+location.origin+programPath(p):"저장하면 프로그램 주소가 자동 생성됩니다.";};
 const oldReset=resetProgramForm;resetProgramForm=function(){oldReset();bindingWanted="";select.value="";};
-select.onchange=()=>{bindingWanted=select.value;};
+select.onchange=()=>{bindingWanted=select.value;const item=list.find(s=>s.id===bindingWanted);document.querySelector('#surveyBindingStatus').textContent=item?'신청서: '+item.title+(surveyRole==='super'?' · 담당자: '+(item.owner_name||'미지정'):''):'';};
 document.querySelector('[data-tab="programCreate"]').addEventListener("click",()=>refreshBinding());
-window.NurimSurvey={api,selected:()=>bindingWanted,refreshBinding};
+window.NurimSurvey={api,selected:()=>bindingWanted,selection:()=>list.find(s=>s.id===bindingWanted),refreshBinding};
+document.querySelector("#goApplicationSettings").addEventListener("click",refreshBinding);
+document.addEventListener("submit",event=>{if(event.target.id!=="programForm")return;const existing=editingId&&programs.find(p=>p.id===editingId);if(!bindingWanted&&!existing){event.preventDefault();event.stopImmediatePropagation();alert("신청에 사용할 설문을 선택해 주세요.");setProgramRegistrationStep("application");select.focus();return;}if(bindingWanted){const chosen=list.find(s=>s.id===bindingWanted);if(chosen&&surveyRole==="super"&&chosen.center_name&&document.querySelector("#centerName").value.trim()!==chosen.center_name){event.preventDefault();event.stopImmediatePropagation();alert("프로그램 복지관과 설문 소속 기관이 다릅니다. 같은 기관의 설문을 선택해 주세요.");return;}["#googleFormUrl","#googleFormTokenEntry","#googleFormResponseSheetId"].forEach(id=>{const el=document.querySelector(id);if(el)el.value="";});document.querySelector("#formEnabled").checked=false;}},true);
 async function refresh(){
  const {data:{session}}=await db.auth.getSession();
  if(!session)throw Error("로그인이 필요합니다.");
- if(loadedUser!==session.user.id){loadedUser=session.user.id;current=null;saved=null;dirty=false;}
- list=(await api("list")).surveys;
+ if(loadedUser!==session.user.id){loadedUser=session.user.id;current=null;saved=null;dirty=false;centerChoice="";managerChoice="";}
+ const result=await api("list",{scope:"manage"});list=result.surveys;surveyRole=result.role||"manager";
  if(!current)renderList();
  refreshBinding();
 }
 function renderList(){
- current=null;dirty=false;section.innerHTML='<h3>내 설문 목록</h3><p>내 계정으로 만든 설문을 관리합니다. 복사하면 응답을 가져오지 않고 새 설문을 만듭니다.</p><div class="formActions"><button data-action="new">새 설문 만들기</button><button data-action="health">Google 연결 점검</button></div><div class="surveyList">'+(list.length?list.map(s=>'<article class="row"><strong>'+esc(s.title)+'</strong><p>수정 '+s.revision+'회 · '+(s.published_revision?'신청용 배포 완료':'아직 배포하지 않음')+' · '+new Date(s.updated_at).toLocaleString("ko-KR")+'</p><button data-action="load" data-id="'+s.id+'">열기</button><button data-action="copy" data-id="'+s.id+'">복사</button></article>').join(""):'<p>만든 설문이 없습니다.</p>')+'</div>';
+ current=null;dirty=false;
+ const centers=[...new Set(list.map(s=>s.center_name||'기관 미지정'))].sort();
+ const managers=[...new Map(list.filter(s=>!centerChoice||(s.center_name||'기관 미지정')===centerChoice).map(s=>[s.owner_id,s.owner_name||'담당자'])).entries()];
+ const rows=list.filter(s=>(!centerChoice||(s.center_name||'기관 미지정')===centerChoice)&&(!managerChoice||s.owner_id===managerChoice));
+ section.innerHTML='<h3>'+(surveyRole==='super'?'기관별 설문 관리':'내 설문 목록')+'</h3><p>설문을 선택해 문항·배포·응답을 함께 관리합니다. 복사는 응답을 가져오지 않습니다.</p><div class="formActions"><button data-action="new">새 설문 만들기</button><button data-action="health">연결 점검</button></div>'+(surveyRole==='super'?'<div class="surveyFilters"><label>기관<select id="surveyCenterFilter"><option value="">전체 기관</option>'+centers.map(c=>'<option'+(c===centerChoice?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label><label>담당자<select id="surveyManagerFilter"><option value="">전체 담당자</option>'+managers.map(([id,name])=>'<option value="'+id+'"'+(id===managerChoice?' selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label></div>':'')+'<p>'+rows.length+'개 설문</p><div class="surveyList">'+(rows.length?rows.map(s=>'<article class="row"><strong>'+esc(s.title)+'</strong><p>'+esc(s.center_name||'기관 미지정')+' · '+esc(s.owner_name||'담당자')+'</p><p>수정 '+s.revision+'회 · '+(s.published_revision?'신청용 배포 완료':'저장만 완료')+'</p><button data-action="load" data-id="'+s.id+'">열기</button><button data-action="copy" data-id="'+s.id+'">복사</button></article>').join(''):'<p>설문이 없습니다.</p>')+'</div>';
+ section.querySelector('#surveyCenterFilter')?.addEventListener('change',e=>{centerChoice=e.target.value;managerChoice='';renderList();});
+ section.querySelector('#surveyManagerFilter')?.addEventListener('change',e=>{managerChoice=e.target.value;renderList();});
 }
 function seed(){
  const questions=typeof cloneDefaultConsentItems==="function"?cloneDefaultConsentItems().flatMap(c=>c.rows?.length?c.rows.map(r=>({id:"consent_"+r.id,type:"consent",label:r.label,help:c.text,required:true,blockRefusal:false,options:[]})):[{id:"consent_"+c.id,type:"consent",label:c.title,help:c.text,required:true,blockRefusal:false,options:[]}]):[];
@@ -45,39 +56,42 @@ function seed(){
 async function load(id,copy=false,rev){
  const d=await api("load",{surveyId:id,revision:rev});
  current=copy?{id:null,revision:0}:d.survey;revision=copy?0:d.version.revision;saved=structuredClone(d.version.schema);if(copy)saved.title+=" (복사)";
- dirty=copy;renderEditor(d.versions);
+ dirty=copy;activeQuestion=0;renderEditor(d.versions);
 }
 function renderEditor(history=[]){
- section.innerHTML='<div class="formActions"><button data-action="list">설문 목록</button><strong>'+esc(saved.title)+'</strong><span id="surveySaveState">'+(dirty?"저장 전":"저장본 "+revision)+'</span></div><div class="surveyContext"><label>설문 제목<input id="surveyTitle" maxlength="200" value="'+esc(saved.title)+'"></label><label>설문 안내<textarea id="surveyDescription">'+esc(saved.description)+'</textarea></label></div><div id="surveyQuestions"></div><div class="formActions"><button data-action="add">문항 추가</button><button data-action="save" class="primary">수정 내용 저장</button><button data-action="preview">신청 화면 미리보기</button><button data-action="print">빈 설문지 인쇄 / PDF</button><button data-action="html">빈 설문지 HTML</button></div><div class="formActions"><button data-action="publish">저장본 Google 배포 / 업데이트</button><button data-action="responses">응답·그래프·CSV</button></div><p>저장은 문항 이력을 남깁니다. Google 배포 후 연결된 프로그램에 새 문항이 적용됩니다. 기존 응답은 작성 당시 문항으로 유지됩니다.</p><details><summary>이전 수정 이력 ('+history.length+')</summary>'+history.map(v=>'<p>수정 '+v.revision+' · '+esc(v.saved_name)+' · '+new Date(v.saved_at).toLocaleString("ko-KR")+' <button data-action="history" data-revision="'+v.revision+'">문항 보기</button></p>').join("")+'</details><div id="surveyResults"></div>';
+ section.innerHTML='<div class="formActions"><button data-action="list">설문 목록</button><strong>'+esc(saved.title)+'</strong><span id="surveySaveState">'+(dirty?"저장 전":"저장본 "+revision)+'</span></div><div class="surveyContext"><label>설문 제목<input id="surveyTitle" maxlength="200" value="'+esc(saved.title)+'"></label><label>설문 안내<textarea id="surveyDescription">'+esc(saved.description)+'</textarea></label></div><div class="surveyEditorLayout"><div id="surveyQuestions"></div><aside class="surveySideTools" aria-label="문항 도구"><button data-action="add">＋ 문항 추가</button><button data-action="copyQuestion">문항 복사</button><button data-action="collapse">모두 접기</button><button data-action="save">저장</button></aside></div><div class="formActions"><button data-action="save" class="primary">수정 내용 저장</button><button data-action="preview">신청 화면 미리보기</button><button data-action="print">빈 설문지 인쇄 / PDF</button><button data-action="html">빈 설문지 HTML</button></div><div class="formActions"><button data-action="publish">신청용 배포 / 업데이트</button><button data-action="responses">응답·그래프·CSV</button></div><p>저장은 문항 이력을 남깁니다. Google 배포 후 연결된 프로그램에 새 문항이 적용됩니다. 기존 응답은 작성 당시 문항으로 유지됩니다.</p><details><summary>이전 수정 이력 ('+history.length+')</summary>'+history.map(v=>'<p>수정 '+v.revision+' · '+esc(v.saved_name)+' · '+new Date(v.saved_at).toLocaleString("ko-KR")+' <button data-action="history" data-revision="'+v.revision+'">문항 보기</button></p>').join("")+'</details><div id="surveyResults"></div>';
  renderQuestions();
 }
 function renderQuestions(){
- section.querySelector("#surveyQuestions").innerHTML=saved.questions.map((q,i)=>'<fieldset class="surveyQuestion" data-index="'+i+'"><legend>문항 '+(i+1)+'</legend><label>유형<select data-field="type">'+Object.entries(types).map(([v,l])=>'<option value="'+v+'"'+(q.type===v?" selected":"")+'>'+l+'</option>').join("")+'</select></label><label>질문<input data-field="label" value="'+esc(q.label)+'"></label><label>설명·미동의 안내<textarea data-field="help">'+esc(q.help)+'</textarea></label><label><input type="checkbox" data-field="required"'+(q.required?" checked":"")+'>응답 필수</label>'+(q.type==="consent"?'<label><input type="checkbox" data-field="blockRefusal"'+(q.blockRefusal?" checked":"")+'>미동의 시 접수 제한 (위 설명에 이유 필수)</label>':"")+(['radio','checkbox','select','rank'].includes(q.type)?'<div class="surveyOptions">'+q.options.map((o,n)=>'<label>선택지 '+(n+1)+'<textarea data-option="'+n+'">'+esc(o)+'</textarea><button data-action="removeOption" data-index="'+i+'" data-option="'+n+'">선택지 삭제</button></label>').join("")+'<button data-action="addOption" data-index="'+i+'">선택지 추가</button></div>':"")+'<div class="formActions"><button data-action="up" data-index="'+i+'">위로</button><button data-action="down" data-index="'+i+'">아래로</button><button data-action="remove" data-index="'+i+'">문항 삭제</button></div></fieldset>').join("");
+ section.querySelector('#surveyQuestions').innerHTML=saved.questions.map((q,i)=>'<details class="surveyQuestion" data-index="'+i+'"'+(i===activeQuestion?' open':'')+'><summary><span>'+(i+1)+'</span><strong class="questionTitle">'+esc(q.label||'새 문항')+'</strong><span class="questionType">'+esc(types[q.type])+(q.required?' · 필수':'')+'</span></summary><div class="questionEditorBody"><div class="questionHeaderFields"><label>질문<input data-field="label" value="'+esc(q.label)+'"></label><label>유형<select data-field="type">'+Object.entries(types).map(([v,l])=>'<option value="'+v+'"'+(q.type===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label></div><details class="questionHelp"><summary>설명·미동의 안내'+(q.help?' (작성됨)':' 추가')+'</summary><label>설명<textarea data-field="help">'+esc(q.help)+'</textarea></label></details><div class="questionToggles"><label><input type="checkbox" data-field="required"'+(q.required?' checked':'')+'>응답 필수</label>'+(q.type==='consent'?'<label><input type="checkbox" data-field="blockRefusal"'+(q.blockRefusal?' checked':'')+'>미동의 시 접수 제한</label>':'')+'</div>'+(['radio','checkbox','select','rank'].includes(q.type)?'<div class="surveyOptions">'+q.options.map((o,n)=>'<div class="surveyOption"><label>선택지 '+(n+1)+'<textarea rows="1" data-option="'+n+'">'+esc(o)+'</textarea></label><button data-action="removeOption" data-index="'+i+'" data-option="'+n+'">삭제</button></div>').join('')+'<button data-action="addOption" data-index="'+i+'">선택지 추가</button></div>':'')+'<div class="formActions"><button data-action="up" data-index="'+i+'">위로</button><button data-action="down" data-index="'+i+'">아래로</button><button data-action="remove" data-index="'+i+'">문항 삭제</button></div></div></details>').join('');
 }
+section.addEventListener('toggle',e=>{if(!e.target.matches('.surveyQuestion')||!e.target.open)return;activeQuestion=Number(e.target.dataset.index);section.querySelectorAll('.surveyQuestion[open]').forEach(el=>{if(el!==e.target)el.open=false;});},true);
 function read(){
  if(!saved)return;
  saved.title=section.querySelector("#surveyTitle").value.trim();saved.description=section.querySelector("#surveyDescription").value;
  section.querySelectorAll(".surveyQuestion").forEach(el=>{const q=saved.questions[Number(el.dataset.index)];el.querySelectorAll("[data-field]").forEach(f=>q[f.dataset.field]=f.type==="checkbox"?f.checked:f.value);el.querySelectorAll("textarea[data-option]").forEach(f=>q.options[Number(f.dataset.option)]=f.value);});
 }
-section.addEventListener("input",()=>{dirty=true;const state=section.querySelector("#surveySaveState");if(state)state.textContent="저장하지 않은 수정";});
+section.addEventListener("input",e=>{if(e.target.dataset.field==="label")e.target.closest(".surveyQuestion").querySelector(".questionTitle").textContent=e.target.value||"새 문항";dirty=true;const state=section.querySelector("#surveySaveState");if(state)state.textContent="저장하지 않은 수정";});
 section.addEventListener("change",e=>{if(e.target.dataset.field==="type"){read();renderQuestions();}});
 section.addEventListener("click",async e=>{
  const button=e.target.closest("button[data-action]");if(!button)return;
- const action=button.dataset.action,i=Number(button.dataset.index);button.disabled=true;
+ const action=button.dataset.action,i=button.dataset.index===undefined?activeQuestion:Number(button.dataset.index);button.disabled=true;
  try{
-  if(action==="new"){current={id:null,revision:0};revision=0;saved=seed();dirty=true;renderEditor();return;}
+  if(action==="new"){if(dirty&&!confirm("저장하지 않은 수정을 닫을까요?"))return;activeQuestion=0;current={id:null,revision:0};revision=0;saved=seed();dirty=true;renderEditor();return;}
   if(action==="load"||action==="copy"){await load(button.dataset.id,action==="copy");return;}
   if(action==="list"){if(dirty&&!confirm("저장하지 않은 수정을 닫을까요?"))return;current=null;await refresh();return;}
   if(action==="health"){await api("health");alert("연결이 잘 됐습니다.");return;}
   read();
+  if(action==="collapse"){activeQuestion=-1;renderQuestions();return;}
+  if(action==="copyQuestion"){if(i<0||!saved.questions[i])throw Error("복사할 문항을 먼저 선택해 주세요.");const q=structuredClone(saved.questions[i]);q.id="q_"+crypto.randomUUID().replaceAll("-","");saved.questions.splice(i+1,0,q);activeQuestion=i+1;dirty=true;renderQuestions();return;}
   if(["add","remove","up","down","addOption","removeOption"].includes(action)){
-   if(action==="add")saved.questions.push({id:"q_"+crypto.randomUUID().replaceAll("-",""),type:"text",label:"새 문항",help:"",required:false,blockRefusal:false,options:["선택지 1"]});
+   if(action==="add")saved.questions.splice(Math.max(0,activeQuestion+1),0,{id:"q_"+crypto.randomUUID().replaceAll("-",""),type:"text",label:"새 문항",help:"",required:false,blockRefusal:false,options:["선택지 1"]});
    if(action==="remove")saved.questions.splice(i,1);
    if(action==="up"&&i>0)[saved.questions[i-1],saved.questions[i]]=[saved.questions[i],saved.questions[i-1]];
    if(action==="down"&&i<saved.questions.length-1)[saved.questions[i+1],saved.questions[i]]=[saved.questions[i],saved.questions[i+1]];
    if(action==="addOption")saved.questions[i].options.push("새 선택지");
    if(action==="removeOption")saved.questions[i].options.splice(Number(button.dataset.option),1);
-   dirty=true;renderQuestions();return;
+   activeQuestion=action==="add"?Math.max(0,activeQuestion+1):action==="up"?Math.max(0,i-1):action==="down"?Math.min(saved.questions.length-1,i+1):Math.min(i,saved.questions.length-1);dirty=true;renderQuestions();const state=section.querySelector("#surveySaveState");if(state)state.textContent="저장하지 않은 수정";return;
   }
   if(action==="save"){validateSchema(saved);const d=await api("save",{id:current.id,revision:current.revision||0,schema:saved});await load(d.survey.id);await refreshBinding();return;}
   if(action==="preview"){validateSchema(saved);showSurveyFrame(null,saved);return;}
@@ -128,4 +142,4 @@ function resolvePath(){
 window.addEventListener("popstate",()=>{changingHistory=true;[dialog,document.querySelector("#applyDialog")].forEach(d=>{if(d.open){suppressedCloses++;d.close();}});changingHistory=false;openedFromPath=false;resolvePath();});
 const oldRender=renderAll;renderAll=function(){oldRender();resolvePath();};resolvePath();
 window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
-db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT"){sessionGeneration++;bindingRequest++;bindingWanted="";select.value="";current=null;saved=null;list=[];viewRows=[];dirty=false;section.innerHTML="";}});
+db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT"){sessionGeneration++;bindingRequest++;bindingWanted="";select.value="";current=null;saved=null;list=[];viewRows=[];dirty=false;centerChoice="";managerChoice="";surveyRole="manager";section.innerHTML="";}});

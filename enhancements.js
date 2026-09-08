@@ -33,10 +33,12 @@ let programPage = 1;
 let lastProgramFilterKey = "";
 
 function programColumnsForViewport() {
-  if (window.innerWidth >= 1440) return 4;
-  if (window.innerWidth >= 900) return 3;
-  if (window.innerWidth >= 620) return 2;
-  return 1;
+  const box=document.querySelector('#programs');
+  const width=box?.clientWidth||window.innerWidth;
+  const minimum=20*parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const columns=Math.max(1,Math.min(4,Math.floor((width+20)/(minimum+20))));
+  if(box)box.style.gridTemplateColumns='repeat('+columns+',minmax(0,1fr))';
+  return columns;
 }
 
 function renderProgramPagination(totalPages) {

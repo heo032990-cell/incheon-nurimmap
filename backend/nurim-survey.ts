@@ -110,8 +110,12 @@ Deno.serve(async req=>{
   if(action==="list"){
    let q=db.from("nurim_surveys").select("*").order("updated_at",{ascending:false});
    // Normal view is always the current manager's surveys, including super users.
-   q=q.eq("owner_id",a.id);
-   return result({ok:true,surveys:check(await q)});
+   if(a.role!=='super'||b.scope!=='manage')q=q.eq('owner_id',a.id);
+   const rows=check(await q);
+   const owners=[...new Set(rows.map((s:any)=>s.owner_id))],centers=[...new Set(rows.map((s:any)=>s.center_id).filter(Boolean))];
+   const profiles=owners.length?check(await db.from('profiles').select('id,display_name').in('id',owners)):[];
+   const institutions=centers.length?check(await db.from('centers').select('id,name').in('id',centers)):[];
+   return result({ok:true,role:a.role,surveys:rows.map((s:any)=>({...s,owner_name:profiles.find((p:any)=>p.id===s.owner_id)?.display_name||'담당자',center_name:institutions.find((c:any)=>c.id===s.center_id)?.name||''}))});
   }
   if(action==="health")return result(await google("nurim-survey-health",{targetFolderId:await folder(a.id,a.center_id)}));
   if(action==="save"){
