@@ -20,8 +20,8 @@ function field(q){
  return '<fieldset><legend>'+esc(q.label)+(q.required?' <span aria-label="필수">*</span>':"")+'</legend>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+html+'</fieldset>';
 }
 function render(){
- const s=data.schema;pageIndex=0;pages=surveyPages(s);
- root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"><legend>신청자 기본정보</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p>상세 응답과 작성된 신청서는 기관의 Google Drive에 저장됩니다. 누림지도에는 이름·생년월일·연락처와 접수 관리정보가 기록됩니다.</p><p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
+ const s=data.schema;pageIndex=0;pages=preview?surveyPages(s):[[],...surveyPages(s)];
+ root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"'+(preview?' hidden':'')+'><legend>신청 기본정보 · 한 번만 입력</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p id="basicCarryNotice">'+(preview?'이 미리보기는 추가 설문 문항만 표시합니다. 실제 신청 시 첫 단계의 이름·생년월일·연락처가 신청서에 함께 반영됩니다.':'처음 입력한 이름·생년월일·연락처는 신청서와 신청명단에 함께 반영됩니다. 설문에서 다시 입력하지 않아도 됩니다.')+'</p><p>상세 응답과 작성된 신청서는 기관의 Google Drive에 저장됩니다. 누림지도에는 이름·생년월일·연락처와 접수 관리정보가 기록됩니다.</p><p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
  root.querySelector("form").onsubmit=submit;
  root.querySelector("#previousPage").onclick=()=>{if(!busy){pageIndex--;showPage();}};
  root.querySelector("#nextPage").onclick=()=>{if(!busy&&checkPage()){pageIndex++;showPage();}};
@@ -35,10 +35,10 @@ function values(f,questions){
   answers[q.id]=q.type==='checkbox'?controls.filter(x=>x.checked).map(x=>x.value):q.type==='rank'?controls.map(x=>x.value).filter(Boolean):['radio','consent'].includes(q.type)?controls.find(x=>x.checked)?.value||'':controls[0].value;
  }return answers;
 }
-function basics(f){return {name:f.elements.namedItem('name').value.trim(),birth:f.elements.namedItem('birth').value,phone:f.elements.namedItem('phone').value.trim()};}
+function basics(f){if(preview)return {name:'미리보기',birth:'2000-01-01',phone:'01000000000'};return {name:f.elements.namedItem('name').value.trim(),birth:f.elements.namedItem('birth').value,phone:f.elements.namedItem('phone').value.trim()};}
 function showPage(focus=true){
  root.querySelectorAll('.surveyPage').forEach((el,i)=>{el.hidden=i!==pageIndex;});
- root.querySelector('#pageProgress').textContent=(pageIndex+1)+' / '+pages.length+' 페이지';
+ root.querySelector('#pageProgress').textContent=preview?(pageIndex+1)+' / '+pages.length+' 설문 페이지':pageIndex===0?'신청 기본정보':pageIndex+' / '+(pages.length-1)+' 설문 페이지';
  root.querySelector('#previousPage').hidden=pageIndex===0;
  root.querySelector('#nextPage').hidden=pageIndex===pages.length-1;
  root.querySelector('button[type="submit"]').hidden=pageIndex!==pages.length-1;
@@ -49,7 +49,7 @@ function showPage(focus=true){
 function checkPage(){
  const f=root.querySelector('form'),panel=f.querySelector('[data-page="'+pageIndex+'"]');
  try{
-  for(const input of panel.querySelectorAll('input,select,textarea')){if(!input.checkValidity()){input.reportValidity();return false;}}
+  for(const input of panel.querySelectorAll('input,select,textarea')){if(input.closest('[hidden]'))continue;if(!input.checkValidity()){input.reportValidity();return false;}}
   validateAnswers({...data.schema,questions:pages[pageIndex]},basics(f),values(f,pages[pageIndex]));return true;
  }catch(e){f.querySelector('#status').textContent=e.message;return false;}
 }
