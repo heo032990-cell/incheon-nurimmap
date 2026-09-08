@@ -1,0 +1,11 @@
+# Private data and credentials must never enter source control.
+.env
+.env.*
+!.env.example
+.netlify/
+node_modules/
+archive/
+output/
+tmp/
+*.zip
+*backup*.json
