@@ -15,3 +15,15 @@ const text=csv(s,[{id:'1',name:'=HYPERLINK("bad")',birth:b.birth,answers:{q1:['�
 assert(printHTML({...s,title:'<script>x</script>'}).includes('&lt;script&gt;'));assert(printHTML(s).includes('______년 ___월 ___일'));
 console.log('11 response, date, consent, export safety assertions passed');
 
+
+// Promotion schedules must populate date controls without inventing a missing year.
+const {readFileSync}=await import('node:fs');
+const {runInNewContext}=await import('node:vm');
+const scheduleWindow={};runInNewContext(readFileSync(new URL('../program-fields-v66.js',import.meta.url),'utf8'),{window:scheduleWindow});
+for(const text of ['활동기간: 2026년 9월 16일 ~ 2026년 10월 14일','실제 운영일정: 2026.9.16 ~ 10.14','일시: 2026/9/16 ~ 10/14']){
+ const p=scheduleWindow.nurimParseSchedule(text);assert.equal(p.start,'2026-09-16');assert.equal(p.end,'2026-10-14');
+}
+assert.equal(scheduleWindow.nurimParseSchedule('활동기간: 9월 16일 ~ 10월 14일').start,'');
+assert.equal(scheduleWindow.nurimParseSchedule('활동기간: 2026년 2월 30일').start,'');
+assert.equal(scheduleWindow.nurimParseSchedule('매주 수요일 2026년 9월 16일 10:00').detail,'매주 수요일 10:00');
+console.log('Activity period date formats, missing-year and invalid-date checks passed');

@@ -68,7 +68,7 @@ section.addEventListener("click",async e=>{
   if(action==="new"){current={id:null,revision:0};revision=0;saved=seed();dirty=true;renderEditor();return;}
   if(action==="load"||action==="copy"){await load(button.dataset.id,action==="copy");return;}
   if(action==="list"){if(dirty&&!confirm("저장하지 않은 수정을 닫을까요?"))return;current=null;await refresh();return;}
-  if(action==="health"){await api("health");alert("Google Drive 연결과 Apps Script v78 응답을 확인했습니다.");return;}
+  if(action==="health"){await api("health");alert("연결이 잘 됐습니다.");return;}
   read();
   if(["add","remove","up","down","addOption","removeOption"].includes(action)){
    if(action==="add")saved.questions.push({id:"q_"+crypto.randomUUID().replaceAll("-",""),type:"text",label:"새 문항",help:"",required:false,blockRefusal:false,options:["선택지 1"]});

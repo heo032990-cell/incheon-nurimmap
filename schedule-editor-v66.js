@@ -26,6 +26,18 @@
     end.setCustomValidity(end.value && (!start.value || end.value < start.value) ? '종료일은 운영 시작일 이후로 입력해 주세요.' : '');
     descriptor.set.call(original, window.nurimFormatSchedule(start.value,end.value,detail.value));
   }
+  // Apply extracted dates independently: existing detail text must not block empty date fields.
+  window.nurimApplyScheduleDraft = value => {
+    const parsed=window.nurimParseSchedule(value);
+    const entered=input=>Boolean(input.value || [...(input.closest('.scrollDateInput')?.querySelectorAll('select')||[])].some(select=>select.value));
+    let changed=false;
+    if(parsed.start&&!entered(start)){start.value=parsed.start;changed=true;}
+    if(parsed.end&&!entered(end)&&start.value&&parsed.end>=start.value){end.value=parsed.end;changed=true;}
+    if(!detail.value.trim()&&parsed.detail){detail.value=parsed.detail;changed=true;}
+    if(changed){sync();[start,end].forEach(input=>{if(input.value)input.dispatchEvent(new Event('change'));});}
+    group.querySelector('#legacyScheduleHint').classList.toggle('hidden',!detail.value||Boolean(start.value));
+    return changed;
+  };
   Object.defineProperty(original, 'value', {configurable:true,get(){return descriptor.get.call(this);},set(value){descriptor.set.call(this,value);read(value);}});
   group.addEventListener('input', sync); group.addEventListener('change', sync);
   group.querySelector('#clearOperationEnd').addEventListener('click', () => {end.value='';end.dispatchEvent(new Event('change',{bubbles:true}));});
