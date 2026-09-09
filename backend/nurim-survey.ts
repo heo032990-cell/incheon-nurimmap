@@ -34,7 +34,13 @@ async function google(action:string,payload:any){
  if(!url||!secret)throw Error("Google 연결 설정이 필요합니다.");
  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...payload,action,secret}),signal:AbortSignal.timeout(50000)});
  let data;try{data=await res.json();}catch{throw Error("Google 응답을 확인할 수 없습니다. 잠시 후 같은 신청으로 다시 시도해 주세요.");}
- if(!res.ok||!data.ok||data.protocol!=="nurim-survey-v78")throw Error("Google 연결을 완료하지 못했습니다. Apps Script v78 배포와 폴더 권한을 확인해 주세요.");
+ if(!res.ok||!data.ok||data.protocol!=="nurim-survey-v78"){
+  if(action==="nurim-survey-publish"){
+   const detail=typeof data.error==="string"?data.error.split(secret).join("[비공개]").replace(/https?:\/\/[^\s]+/g,"[주소]").slice(0,500):"Google 응답 형식 또는 배포 버전을 확인해 주세요.";
+   throw Error("설문 사용 준비 중 오류가 발생했습니다. 연결 점검은 폴더 접근만 확인하며, 이 단계에서는 시트와 PDF를 생성합니다. Google 오류: "+detail);
+  }
+  throw Error("Google 작업을 완료하지 못했습니다. 연결 설정과 파일 접근 권한을 확인해 주세요.");
+ }
  return data;
 }
 async function version(s:any,rev:number){return check(await db.from("nurim_survey_versions").select("*").eq("survey_id",s.id).eq("revision",rev).single());}
