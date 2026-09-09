@@ -138,7 +138,7 @@ submitApplication=async function(){
 window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==dialog.querySelector('iframe').contentWindow||e.data?.type!=='nurim-complete')return;surveyHandoff=false;dialog.close();});
 dialog.addEventListener('cancel',()=>{surveyHandoff=false;});
 function programPath(p){return "/"+p.publicNumber+"/"+p.publicYear+"/"+encodeURIComponent(p.publicCenter||p.centerName);}
-let changingHistory=false,openedFromPath=false,suppressedCloses=0;
+let changingHistory=false,openedFromPath=false,suppressedCloses=0,pathPending=true;
 const originalOpen=openApply;
 openApply=function(p){
  if(flags.programAddress&&p.publicNumber&&!changingHistory){history.pushState({nurimProgram:p.id},"",programPath(p));openedFromPath=true;}
@@ -148,14 +148,20 @@ function closed(){if(suppressedCloses){suppressedCloses--;return;}if(changingHis
 dialog.addEventListener("close",()=>{if(!dialog.open)dialog.querySelector("iframe").src="about:blank";closed();});
 document.querySelector("#applyDialog").addEventListener("close",closed);
 function resolvePath(){
- const match=location.pathname.match(/^\/(\d+)\/(\d{4})\/([^/]+)\/?$/);if(!match)return;
+ if(!pathPending||document.querySelector("#adminDialog").open)return;
+ const match=location.pathname.match(/^\/(\d+)\/(\d{4})\/([^/]+)\/?$/);if(!match){pathPending=false;return;}
  let requestedCenter;try{requestedCenter=decodeURIComponent(match[3]);}catch{return;}
  const p=programs.find(p=>String(p.publicNumber)===match[1]&&String(p.publicYear)===match[2]&&p.publicCenter===requestedCenter);
- if(p&&!dialog.open&&!document.querySelector("#applyDialog").open){changingHistory=true;openApply(p);changingHistory=false;}
+ if(p&&!dialog.open&&!document.querySelector("#applyDialog").open){pathPending=false;changingHistory=true;openApply(p);changingHistory=false;}
 }
-window.addEventListener("popstate",()=>{changingHistory=true;[dialog,document.querySelector("#applyDialog")].forEach(d=>{if(d.open){suppressedCloses++;d.close();}});changingHistory=false;openedFromPath=false;resolvePath();});
+window.addEventListener("popstate",()=>{changingHistory=true;[dialog,document.querySelector("#applyDialog")].forEach(d=>{if(d.open){suppressedCloses++;d.close();}});changingHistory=false;openedFromPath=false;pathPending=true;resolvePath();});
 const oldRender=renderAll;renderAll=function(){oldRender();resolvePath();};resolvePath();
 window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
-db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT"){sessionGeneration++;bindingRequest++;bindingWanted="";select.value="";current=null;saved=null;list=[];viewRows=[];dirty=false;centerChoice="";managerChoice="";surveyRole="manager";section.innerHTML="";}});
+db.auth.onAuthStateChange((event)=>{if((event==="SIGNED_IN"||event==="SIGNED_OUT")&&document.querySelector("#adminDialog").open)clearApplicationNavigation();if(event==="SIGNED_OUT"){sessionGeneration++;bindingRequest++;bindingWanted="";select.value="";current=null;saved=null;list=[];viewRows=[];dirty=false;centerChoice="";managerChoice="";surveyRole="manager";section.innerHTML="";}});
 
-document.querySelector("#adminOpen").addEventListener("click",()=>{resetProgramForm();switchAdminTab("programCreate");setProgramRegistrationStep("basic");});
+function clearApplicationNavigation(){
+ pathPending=false;openedFromPath=false;surveyHandoff=false;
+ for(const d of [dialog,document.querySelector("#applyDialog")]){if(d.open){suppressedCloses++;d.close();}}
+ if(/^\/\d+\/\d{4}\//.test(location.pathname))history.replaceState({},"","/");
+}
+document.querySelector("#adminOpen").addEventListener("click",()=>{clearApplicationNavigation();resetProgramForm();switchAdminTab("programCreate");setProgramRegistrationStep("basic");});
