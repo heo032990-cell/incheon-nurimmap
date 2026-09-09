@@ -12,17 +12,17 @@ const originalTab=switchAdminTab;
 switchAdminTab=function(id){if(dirty&&id!=="surveyManage"&&!confirm("저장하지 않은 설문 수정이 있습니다. 다른 메뉴로 이동할까요?"))return;originalTab(id);section.classList.toggle("hidden",id!=="surveyManage");if(id==="surveyManage")refresh().catch(showError);};
 tab.hidden=flags.survey===false;tab.onclick=()=>switchAdminTab("surveyManage");
 function showError(e){alert(e.message||String(e));}
-const binding=document.createElement("section");binding.id="nurimSurveyBindingPanel";binding.className="adminGoogleFormBox";binding.innerHTML='<h3>누림 설문 연결</h3><p>우리가 만든 설문을 신청서로 사용합니다. 설문 관리에서 신청용으로 배포한 설문을 선택하세요.</p><label>신청 설문 <select id="nurimSurveyBinding"><option value="">신청 설문을 선택하세요</option></select></label><p id="nurimProgramAddress"></p>';
+const binding=document.createElement("section");binding.id="nurimSurveyBindingPanel";binding.className="adminGoogleFormBox";binding.innerHTML='<h3>추가 설문 연결 (선택)</h3><p>기본 신청과 개인정보 동의 외에 질문이 필요할 때만 연결하세요. 신청서 파일 제출은 아래에서 별도로 선택할 수 있습니다.</p><label>신청 설문 <select id="nurimSurveyBinding"><option value="">추가 설문 없음</option></select></label><p id="nurimProgramAddress"></p>';
 document.querySelector('#programApplicationStep .wizardStepTitle').after(binding);
-const legacyBoxes=[...document.querySelectorAll('#programApplicationStep > .adminConsentBox,#programApplicationStep > .adminGoogleFormBox,#programApplicationStep > .adminFileBox')].filter(x=>x!==binding);legacyBoxes.forEach(x=>x.classList.add('legacyApplicationSettings'));
+const legacyBoxes=[...document.querySelectorAll('#programApplicationStep > .adminConsentBox,#programApplicationStep > .adminGoogleFormBox,#programApplicationStep > .adminFileBox')].filter(x=>x!==binding);legacyBoxes.forEach(x=>x.classList.toggle('legacyApplicationSettings',x.classList.contains('adminGoogleFormBox')));
 binding.insertAdjacentHTML('beforeend','<div class="bindingActions"><button type="button" id="openSurveyBuilder">설문 만들기·관리</button><button type="button" id="reloadSurveyChoices">목록 새로고침</button></div><p id="surveyBindingStatus" role="status"></p>');
 document.querySelector('#openSurveyBuilder').onclick=()=>switchAdminTab('surveyManage');document.querySelector('#reloadSurveyChoices').onclick=()=>refreshBinding();
 const select=binding.querySelector("select");let bindingWanted="";
 async function refreshBinding(){
  const request=++bindingRequest,value=bindingWanted;select.disabled=true;
- try{const response=await api("list",{scope:"manage"});surveyRole=response.role||"manager";const next=response.surveys;if(request!==bindingRequest)return;list=next;select.innerHTML='<option value="">신청 설문을 선택하세요</option>'+list.filter(s=>s.published_revision&&(!editingId||!programs.find(p=>p.id===editingId)?.managerId||s.owner_id===programs.find(p=>p.id===editingId)?.managerId)).map(s=>'<option value="'+s.id+'">'+esc((surveyRole==='super'?(s.center_name||'미지정')+' · '+(s.owner_name||'담당자')+' · ':'')+s.title)+'</option>').join("");
+ try{const response=await api("list",{scope:"manage"});surveyRole=response.role||"manager";const next=response.surveys;if(request!==bindingRequest)return;list=next;select.innerHTML='<option value="">추가 설문 없음</option>'+list.filter(s=>s.published_revision&&(!editingId||!programs.find(p=>p.id===editingId)?.managerId||s.owner_id===programs.find(p=>p.id===editingId)?.managerId)).map(s=>'<option value="'+s.id+'">'+esc((surveyRole==='super'?(s.center_name||'미지정')+' · '+(s.owner_name||'담당자')+' · ':'')+s.title)+'</option>').join("");
  if(value&&!list.some(s=>s.id===value)){const o=new Option("현재 연결된 설문 (다른 담당자 관리)",value);select.append(o);}
- select.value=value;select.disabled=false;document.querySelector("#surveyBindingStatus").textContent=list.some(s=>s.published_revision)?"선택한 설문이 프로그램 신청 화면에 표시됩니다.":"아직 신청용으로 배포한 설문이 없습니다. 설문을 만든 뒤 신청용 배포를 해 주세요.";
+ select.value=value;select.disabled=false;document.querySelector("#surveyBindingStatus").textContent=list.some(s=>s.published_revision)?"선택한 설문이 프로그램 신청 화면에 표시됩니다.":"추가 설문 없이도 신청을 받을 수 있습니다. 설문을 연결하려면 먼저 신청에 사용을 눌러 주세요.";
  }catch(e){if(request!==bindingRequest)return;select.innerHTML='<option value="'+esc(value)+'">설문 목록을 불러오지 못했습니다</option>';select.value=value;}
 }
 const oldFill=fillProgram;fillProgram=function(p){oldFill(p);bindingWanted=p.surveyId||"";refreshBinding();binding.querySelector("#nurimProgramAddress").textContent=p.publicNumber?"프로그램 주소: "+location.origin+programPath(p):"저장하면 프로그램 주소가 자동 생성됩니다.";};
@@ -31,7 +31,7 @@ select.onchange=()=>{bindingWanted=select.value;const item=list.find(s=>s.id===b
 document.querySelector('[data-tab="programCreate"]').addEventListener("click",()=>refreshBinding());
 window.NurimSurvey={api,selected:()=>bindingWanted,selection:()=>list.find(s=>s.id===bindingWanted),refreshBinding};
 document.querySelector("#goApplicationSettings").addEventListener("click",refreshBinding);
-document.addEventListener("submit",event=>{if(event.target.id!=="programForm")return;const existing=editingId&&programs.find(p=>p.id===editingId);if(!bindingWanted&&!existing){event.preventDefault();event.stopImmediatePropagation();alert("신청에 사용할 설문을 선택해 주세요.");setProgramRegistrationStep("application");select.focus();return;}if(bindingWanted){const chosen=list.find(s=>s.id===bindingWanted);if(chosen&&surveyRole==="super"&&chosen.center_name&&document.querySelector("#centerName").value.trim()!==chosen.center_name){event.preventDefault();event.stopImmediatePropagation();alert("프로그램 복지관과 설문 소속 기관이 다릅니다. 같은 기관의 설문을 선택해 주세요.");return;}["#googleFormUrl","#googleFormTokenEntry","#googleFormResponseSheetId"].forEach(id=>{const el=document.querySelector(id);if(el)el.value="";});document.querySelector("#formEnabled").checked=false;}},true);
+document.addEventListener("submit",event=>{if(event.target.id!=="programForm")return;const existing=editingId&&programs.find(p=>p.id===editingId);if(bindingWanted){const chosen=list.find(s=>s.id===bindingWanted);if(chosen&&surveyRole==="super"&&chosen.center_name&&document.querySelector("#centerName").value.trim()!==chosen.center_name){event.preventDefault();event.stopImmediatePropagation();alert("프로그램 복지관과 설문 소속 기관이 다릅니다. 같은 기관의 설문을 선택해 주세요.");return;}["#googleFormUrl","#googleFormTokenEntry","#googleFormResponseSheetId"].forEach(id=>{const el=document.querySelector(id);if(el)el.value="";});}},true);
 async function refresh(){
  const {data:{session}}=await db.auth.getSession();
  if(!session)throw Error("로그인이 필요합니다.");
@@ -116,17 +116,33 @@ async function responses(rev){
 }
 const dialog=document.createElement("dialog");dialog.id="nurimSurveyDialog";dialog.innerHTML='<div class="dialogTitle"><h2>프로그램 신청서</h2><button type="button">닫기</button></div><iframe title="프로그램 신청 설문"></iframe>';document.body.append(dialog);
 dialog.querySelector("button").onclick=()=>dialog.close();
-function showSurveyFrame(p,schema){
- const frame=dialog.querySelector("iframe");frame.src="/survey.html"+(p?"?program="+encodeURIComponent(p.id):"?preview=1");
- frame.onload=()=>{if(schema)frame.contentWindow.postMessage({type:"nurim-preview",schema},location.origin);};
+function showSurveyFrame(p,schema,application){
+ const frame=dialog.querySelector("iframe");frame.src="/survey.html"+(p?"?embedded=1&program="+encodeURIComponent(p.id):"?preview=1");
+ frame.onload=()=>{if(application)frame.contentWindow.postMessage({type:"nurim-application",application},location.origin);if(schema)frame.contentWindow.postMessage({type:"nurim-preview",schema},location.origin);};
  dialog.showModal();
 }
+
+let surveyHandoff=false,handoffBusy=false;
+const oldSubmitApplication=submitApplication;
+submitApplication=async function(){
+ const p=activeProgram;if(!p?.surveyId)return oldSubmitApplication();if(handoffBusy)return;
+ const c=collectConsentResponses(p),signature=document.querySelector('#signature').value.trim();
+ if(c.missing||(p.consentEnabled&&!signature)){alert('개인정보 동의 항목과 서명을 확인해 주세요.');return;}
+ handoffBusy=true;
+ try{
+  let file=null;if(p.formEnabled){const files=[...document.querySelector('#applicantFile').files];if(!files.length)throw Error('작성한 신청서 파일을 첨부해 주세요.');file=await fileToData(await window.prepareApplicationUploadFiles(files));}
+  const application={basic:{name:document.querySelector('#name').value.trim(),birth:document.querySelector('#birth').value,phone:document.querySelector('#phone').value.trim()},extra:{participantType:document.querySelector('#type').value,note:document.querySelector('#note').value.trim(),consentResponses:c.responses,signature},file};
+  suppressedCloses++;document.querySelector('#applyDialog').close();surveyHandoff=true;showSurveyFrame(p,null,application);
+ }catch(e){showError(e);}finally{handoffBusy=false;}
+};
+window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==dialog.querySelector('iframe').contentWindow||e.data?.type!=='nurim-complete')return;surveyHandoff=false;dialog.close();});
+dialog.addEventListener('cancel',()=>{surveyHandoff=false;});
 function programPath(p){return "/"+p.publicNumber+"/"+p.publicYear+"/"+encodeURIComponent(p.publicCenter||p.centerName);}
 let changingHistory=false,openedFromPath=false,suppressedCloses=0;
 const originalOpen=openApply;
 openApply=function(p){
  if(flags.programAddress&&p.publicNumber&&!changingHistory){history.pushState({nurimProgram:p.id},"",programPath(p));openedFromPath=true;}
- if(p.surveyId)showSurveyFrame(p);else originalOpen(p);
+ originalOpen(p);if(p.surveyId)document.querySelector("#applySubmitButton").textContent="다음: 추가 설문";
 };
 function closed(){if(suppressedCloses){suppressedCloses--;return;}if(changingHistory)return;if(openedFromPath){openedFromPath=false;history.back();}else if(/^\/\d+\/\d{4}\//.test(location.pathname))history.replaceState({},"","/");}
 dialog.addEventListener("close",()=>{if(!dialog.open)dialog.querySelector("iframe").src="about:blank";closed();});
