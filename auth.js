@@ -226,6 +226,8 @@ function renderApplicants() {
     const group = document.createElement("section");
     group.className = "applicantProgramGroup";
     group.innerHTML = `<div class="programGroupHeader"><div><p>${esc(program.centerName)}</p><h3>${esc(program.title)}</h3></div><div class="programPrintTools"><span>${programApplicants.length}명 신청</span><label class="selectAllApplicants"><input type="checkbox">전체 선택</label><button class="printSelectedApplications" type="button">선택 신청서 인쇄</button><button class="printAllApplications" type="button">전체 신청서 인쇄</button><button class="printRosterButton" type="button">명단 A4 인쇄</button></div></div><div class="programApplicantList"></div>`;
+    group.querySelectorAll(".selectAllApplicants,.printSelectedApplications,.printAllApplications,.printRosterButton").forEach(node=>node.hidden=true);
+    const csvButton=document.createElement("button");csvButton.type="button";csvButton.textContent="참여 명단 CSV";csvButton.onclick=()=>downloadBasicRoster(program,programApplicants);group.querySelector(".programPrintTools").append(csvButton);
     const list = group.querySelector(".programApplicantList");
     const selectAll = group.querySelector(".selectAllApplicants input");
     const checkedApplicants = () => {
@@ -252,11 +254,12 @@ function renderApplicants() {
       const downloadArea = uploadedFile?.dataUrl
         ? `<div class="submittedFile"><div><span>제출 신청서</span><strong>${esc(storedFileName)}</strong></div><a class="fileDownload" href="${uploadedFile.dataUrl}" download="${esc(storedFileName)}">신청서 다운로드</a></div>`
         : '<div class="submittedFile emptyFile"><span>제출된 신청서 파일이 없습니다.</span></div>';
+      const consentProgram={...program,consentItems:applicant.baseConsentSnapshot?.length?applicant.baseConsentSnapshot:program.consentItems};
       const consentEntries = Object.entries(applicant.consentResponses || {});
       const consentDetails = consentEntries.length
-        ? consentEntries.map(([key, value]) => `<div><dt>${esc(consentLabel(program, key))}</dt><dd class="${value === "agree" ? "agreed" : "disagreed"}">${value === "agree" ? "동의" : "미동의"}</dd></div>`).join("")
+        ? consentEntries.map(([key, value]) => `<div><dt>${esc(consentLabel(consentProgram, key))}</dt><dd class="${value === "agree" ? "agreed" : "disagreed"}">${value === "agree" ? "동의" : "미동의"}</dd></div>`).join("")
         : '<div><dt>개인정보 동의</dt><dd>이 프로그램은 별도 동의서를 사용하지 않았습니다.</dd></div>';
-      const applicationDetails = `<details class="applicationDetails"><summary>신청서 내용 상세보기</summary><div class="applicationDetailGrid"><div><dt>신청자 이름</dt><dd>${esc(applicant.name)}</dd></div><div><dt>연락처</dt><dd>${esc(applicant.phone)}</dd></div><div><dt>생년월일</dt><dd>${esc(applicant.birth)}</dd></div><div><dt>참여자 구분</dt><dd>${esc(applicant.type)}</dd></div><div><dt>접수 상태</dt><dd>${applicationQueueLabel(applicant, program)}</dd></div><div><dt>최근 처리</dt><dd>${applicant.lastActionActor === "administrator" ? "관리자" : "이용자"} · ${applicationLifecycleTime(applicant)}</dd></div><div><dt>Google Form 확인</dt><dd>${program.googleFormUrl ? (applicant.googleFormConfirmedAt ? new Date(applicant.googleFormConfirmedAt).toLocaleString("ko-KR") : "확인 기록 없음") : "사용하지 않음"}</dd></div><div class="fullDetail"><dt>요청사항</dt><dd>${applicant.note ? esc(applicant.note) : "없음"}</dd></div><div><dt>전자서명</dt><dd>${esc(applicant.signature || "해당 없음")}</dd></div><div><dt>동의 일시</dt><dd>${applicant.privacyAgreedAt ? new Date(applicant.privacyAgreedAt).toLocaleString("ko-KR") : "해당 없음"}</dd></div></div><h4>개인정보 동의 응답</h4><dl class="consentResponseList">${consentDetails}</dl>${downloadArea}</details>`;
+      const applicationDetails = `<details class="applicationDetails"><summary>신청서 내용 상세보기</summary><div class="applicationDetailGrid"><div><dt>신청자 이름</dt><dd>${esc(applicant.name)}</dd></div><div><dt>연락처</dt><dd>${esc(applicant.phone)}</dd></div><div><dt>생년월일</dt><dd>${esc(applicant.birth)}</dd></div><div><dt>참여자 구분</dt><dd>${esc(applicant.type)}</dd></div><div><dt>접수 상태</dt><dd>${applicationQueueLabel(applicant, program)}</dd></div><div><dt>최근 처리</dt><dd>${applicant.lastActionActor === "administrator" ? "관리자" : "이용자"} · ${applicationLifecycleTime(applicant)}</dd></div><div><dt>Google Form 확인</dt><dd>${program.googleFormUrl ? (applicant.googleFormConfirmedAt ? new Date(applicant.googleFormConfirmedAt).toLocaleString("ko-KR") : "확인 기록 없음") : "사용하지 않음"}</dd></div><div class="fullDetail"><dt>요청사항</dt><dd>${applicant.note ? esc(applicant.note) : "없음"}</dd></div><div><dt>전자서명</dt><dd>${esc(applicant.signature || "해당 없음")}</dd></div><div><dt>동의 일시</dt><dd>${applicant.privacyAgreedAt ? new Date(applicant.privacyAgreedAt).toLocaleString("ko-KR") : "해당 없음"}</dd></div></div><h4>개인정보 동의 응답</h4><dl class="consentResponseList">${consentDetails}</dl>${(applicant.baseConsentSnapshot||[]).map(item=>`<details><summary>${esc(item.title||"개인정보 동의 내용")}</summary><p style="white-space:pre-wrap">${esc(item.text||"")}</p></details>`).join("")}${downloadArea}</details>`;
       const row = document.createElement("article");
       row.className = `applicantSummaryRow lifecycle-${applicant.lifecycleStatus || "received"}`;
       row.innerHTML = `<div class="applicantIdentity"><label class="applicantSelect"><input class="applicantPrintCheck" type="checkbox" value="${esc(applicant.id)}"><span>출력 선택</span></label><strong>${esc(applicant.name)}</strong><span class="applicationQueueTag ${applicant.lifecycleStatus || "received"}">${applicationQueueLabel(applicant, program)}</span><a href="tel:${esc(applicant.phone)}">${esc(applicant.phone)}</a></div>${applicationDetails}`;
@@ -265,7 +268,8 @@ function renderApplicants() {
       printApplicationButton.className = "printApplicationButton";
       printApplicationButton.textContent = "신청서 A4 인쇄";
       printApplicationButton.addEventListener("click", () => printApplication(program, applicant));
-      row.querySelector(".applicantIdentity").append(printApplicationButton);
+      row.querySelector(".applicantSelect").hidden=true;
+      if(program.surveyId&&applicant.driveFolderUrl){const link=document.createElement("a");link.href=applicant.driveFolderUrl;link.target="_blank";link.rel="noopener";link.textContent="설문 신청서 보기";row.querySelector(".applicantIdentity").append(link);}
       list.append(row);
     });
     box.append(group);
@@ -433,3 +437,9 @@ document.querySelector("#managerForm").addEventListener("submit", (event) => {
 
 applySearchConfig();
 applyAdminAccess();
+
+function downloadBasicRoster(program,items){
+ const cell=value=>'"'+String(value??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
+ const rows=[['신청번호','프로그램','이름','생년월일','연락처','접수상태'],...items.map(a=>[a.id,program.title,a.name,a.birth,a.phone,a.lifecycleStatus==='cancelled'?'취소':a.lifecycleStatus==='deleted'?'삭제':a.applicationStatus||'접수'])];
+ const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=(program.title||'프로그램')+'_참여명단.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}

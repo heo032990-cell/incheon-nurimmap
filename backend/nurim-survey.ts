@@ -1,3 +1,4 @@
+import {googleBasicApplication} from "./storage-policy.mjs";
 
 import {createClient} from "npm:@supabase/supabase-js@2";
 import {validateSchema,validateAnswers} from "./survey-core.mjs";
@@ -90,7 +91,7 @@ Deno.serve(async req=>{
    const consentItems=(p.consent_items||[]).filter((x:any)=>x.enabled!==false);
    const consentKeys=consentItems.flatMap((x:any)=>x.type==="matrix"?(x.rows||[]).map((r:any)=>r.id):[x.id]);
    if(consentKeys.length&&(!extra.signature.trim()||consentKeys.some((key:string)=>!["agree","disagree"].includes(extra.consentResponses?.[key]))))throw Error("개인정보 동의 항목과 서명을 확인해 주세요.");
-   const cleanExtra={signature:extra.signature,participantType:extra.participantType,note:extra.note,consentItems,consentResponses:Object.fromEntries(consentKeys.map((key:string)=>[key,extra.consentResponses[key]]))};
+   const cleanExtra={signature:extra.signature,consentItems,consentResponses:Object.fromEntries(consentKeys.map((key:string)=>[key,extra.consentResponses[key]]))};
    let file=null;
    if(p.form_enabled){const f=b.file;if(!f||typeof f.name!=="string"||! /\.(pdf|hwp|hwpx|doc|docx|jpg|jpeg|png|webp|heic|heif|zip)$/i.test(f.name)||f.name.length>200||typeof f.dataUrl!=="string"||f.dataUrl.length>14000000||!/^data:[^;,]*;base64,[A-Za-z0-9+/=]+$/.test(f.dataUrl))throw Error("10MB 이하의 신청서 파일을 첨부해 주세요.");if(f.dataUrl.split(",")[1].length*3/4>10*1024*1024+2)throw Error("첨부 파일은 10MB 이하여야 합니다.");file={name:f.name,mimeType:String(f.type||"application/octet-stream").slice(0,100),base64:f.dataUrl.split(",")[1]};}
 
@@ -100,7 +101,8 @@ Deno.serve(async req=>{
    if(!readiness.capabilities?.includes("application-extras-v87"))throw Error("관리자가 Google Drive 연결 스크립트를 v87로 업데이트해야 신청을 받을 수 있습니다.");
    if(previous){const prior=check(await db.from("applications").select("applicant_name,phone,birth_date,program_id").eq("id",b.id).single());if(prior.program_id!==p.id||prior.applicant_name.trim()!==b.basic.name.trim()||prior.phone.replace(/\D/g,"")!==b.basic.phone.replace(/\D/g,"")||prior.birth_date!==b.basic.birth)throw Object.assign(Error("이전 신청과 기본정보가 다릅니다."),{code:"APPLICATION_IDENTITY_MISMATCH"});b.basic={name:prior.applicant_name,phone:prior.phone,birth:prior.birth_date};}
    const app=check(await db.rpc("nurim_reserve_survey",{p_id:b.id,p_program:p.id,p_survey:s.id,p_revision:rev,p_token:tokenHash,p_basic:b.basic}));
-   let g;try{g=await google("nurim-survey-submit",{targetFolderId,surveyId:s.id,revision:rev,schema:v.schema,file,program:{id:p.id,title:p.title},record:{id:b.id,created_at:app.created_at,name:app.applicant_name,phone:app.phone,birth:app.birth_date,status:app.application_status,queue:app.queue_number,program_id:p.id,program_title:p.title,answers,extra:cleanExtra}});}catch(e){const detail=String((e as any).googleDetail||(e as Error).message).slice(0,1000);await db.from("applications").update({drive_sync_status:"failed",drive_error:detail}).eq("id",b.id);throw Error("제출을 완료하지 못했습니다. 입력 내용은 유지됩니다. 잠시 후 다시 제출해 주세요.");}
+   check(await db.from("applications").update({privacy_agree:consentKeys.length>0,signature:cleanExtra.signature,consent_responses:cleanExtra.consentResponses,base_consent_snapshot:consentItems,consent_version:"base-v90",privacy_agreed_at:app.created_at}).eq("id",b.id));
+   let g;try{g=await google("nurim-survey-submit",{targetFolderId,surveyId:s.id,revision:rev,schema:v.schema,file,program:{id:p.id,title:p.title},record:{id:b.id,created_at:app.created_at,name:app.applicant_name,phone:app.phone,birth:app.birth_date,status:app.application_status,queue:app.queue_number,program_id:p.id,program_title:p.title,answers}});}catch(e){const detail=String((e as any).googleDetail||(e as Error).message).slice(0,1000);await db.from("applications").update({drive_sync_status:"failed",drive_error:detail}).eq("id",b.id);throw Error("제출을 완료하지 못했습니다. 입력 내용은 유지됩니다. 잠시 후 다시 제출해 주세요.");}
    check(await db.from("applications").update({drive_sync_status:"synced",drive_folder_url:g.folderUrl,drive_roster_sheet_url:g.sheetUrl,drive_synced_at:new Date().toISOString(),drive_error:null}).eq("id",b.id));
    check(await db.from("nurim_survey_submissions").update({completed_at:new Date().toISOString()}).eq("id",b.id));
    return result({ok:true,id:b.id,status:app.application_status,queue:app.queue_number});
@@ -120,7 +122,7 @@ Deno.serve(async req=>{
    const meta=check(await db.from("nurim_survey_submissions").select("*").eq("id",app.id).single());
    if(!meta.completed_at)throw Error("Google 원본 저장이 완료되지 않았습니다. 신청 창에서 같은 내용으로 다시 제출해 주세요.");
    const s=check(await db.from("nurim_surveys").select("*").eq("id",meta.survey_id).single());
-   const g=await google("nurim-survey-sync-basic",{targetFolderId:await folder(s.owner_id,s.center_id),surveyId:s.id,revision:meta.revision,application:app});
+   const g=await google("nurim-survey-sync-basic",{targetFolderId:await folder(s.owner_id,s.center_id),surveyId:s.id,revision:meta.revision,application:googleBasicApplication(app)});
    check(await db.from("applications").update({drive_sync_status:"synced",drive_synced_at:new Date().toISOString(),drive_folder_url:g.folderUrl,drive_roster_sheet_url:g.sheetUrl,drive_error:null}).eq("id",app.id));
    return result({ok:true});
   }

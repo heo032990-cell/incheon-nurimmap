@@ -291,6 +291,7 @@
         note: row.note || "",
         privacyAgree: row.privacy_agree,
         consentResponses: row.consent_responses || {},
+        baseConsentSnapshot: row.base_consent_snapshot || [],
         applicationResponses: {},
         consentVersion: row.consent_version || "",
         signature: row.signature || "",
@@ -309,11 +310,11 @@
         driveError: row.drive_error || "",
         driveFolderUrl: row.drive_folder_url || "",
         driveRosterUrl: row.drive_roster_sheet_url || "",
-        uploadedForm: row.uploaded_file_path ? {
+        uploadedForm: (row.uploaded_file_path || row.drive_uploaded_file_url) ? {
           name: row.uploaded_file_name || "제출 신청서",
           type: row.uploaded_file_type || "application/octet-stream",
           size: row.uploaded_file_size || 0,
-          dataUrl: downloadUrl,
+          dataUrl: row.drive_uploaded_file_url || downloadUrl,
           storagePath: row.uploaded_file_path
         } : null
       };
@@ -1077,6 +1078,7 @@
       application_responses: {},
       privacy_agree: useConsent,
       consent_responses: consentResponses,
+      base_consent_snapshot: useConsent ? activeConsentItems(program) : [],
       consent_version: useConsent ? `${globalConsentVersion}:${program.privacyRetentionYears}years` : "none",
       signature: signature || null,
       privacy_agreed_at: useConsent ? now : null,

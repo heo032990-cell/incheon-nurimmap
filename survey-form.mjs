@@ -69,7 +69,12 @@ async function submit(e){
   const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(signature)))).map(x=>x.toString(16).padStart(2,'0')).join('');
   if(ticket?.fingerprint&&ticket.fingerprint!==fingerprint){id=crypto.randomUUID();token=crypto.randomUUID();}
   ticket={id,token,fingerprint};try{sessionStorage.setItem(ticketKey,JSON.stringify(ticket));}catch{}
-  const r=await call("submit",{programId:data.program.id,revision:data.revision,basic,answers,id,token,extra:application.extra,file:application.file});
+  let recovered=false,retried=false;
+  while(true){try{await call("submit",{programId:data.program.id,revision:data.revision,basic,answers,id,token,extra:application.extra,file:application.file});break;}catch(error){
+   if(error.code==="APPLICATION_IDENTITY_MISMATCH"&&!recovered){recovered=true;id=crypto.randomUUID();token=crypto.randomUUID();ticket={id,token,fingerprint};try{sessionStorage.setItem(ticketKey,JSON.stringify(ticket));}catch{}continue;}
+   if(!retried&&(error instanceof TypeError||/잠시 후|제출을 완료하지 못/.test(error.message))){retried=true;status.textContent="접수 상태를 확인하고 있습니다. 잠시만 기다려 주세요.";await new Promise(resolve=>setTimeout(resolve,1200));continue;}
+   throw error;
+  }};
   try{sessionStorage.removeItem(ticketKey);}catch{}
   application=null;
   root.innerHTML='<section class="surveySuccess"><div class="successMark" aria-hidden="true">✓</div><h1>제출이 완료되었습니다.</h1><button id="confirmComplete" type="button">확인</button></section>';
