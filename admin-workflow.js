@@ -58,9 +58,10 @@
   };
 
   function validateBasicStep() {
+    window.reconcileAccessibleDateInputs?.(basicGrid);
     const controls = [...basicGrid.querySelectorAll("input,select,textarea")].filter((control) => !control.disabled);
     for (const control of controls) {
-      if (!control.checkValidity()) { control.reportValidity(); control.focus(); return false; }
+      if (!control.validity.valid) { control.reportValidity(); return false; }
     }
     return true;
   }
@@ -80,6 +81,7 @@
   const fillProgramBeforeWorkflow = fillProgram;
   fillProgram = function fillProgramAndOpenRegistration(program) {
     fillProgramBeforeWorkflow(program);
+    window.reconcileAccessibleDateInputs?.(basicGrid);
     switchAdminTab("programCreate");
     window.setProgramRegistrationStep("basic", true);
   };
