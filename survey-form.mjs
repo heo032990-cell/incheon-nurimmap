@@ -5,7 +5,7 @@ let ticket=null;try{ticket=JSON.parse(sessionStorage.getItem(ticketKey)||'null')
 let pageIndex=0,pages=[],application=null;
 let data,id=ticket?.id||crypto.randomUUID(),token=ticket?.token||crypto.randomUUID(),busy=false;
 const root=document.querySelector("main");
-async function call(action,body={}){const r=await fetch(window.INCHEON_SUPABASE.url+"/functions/v1/nurim-survey",{method:"POST",headers:{"Content-Type":"application/json",apikey:window.INCHEON_SUPABASE.publishableKey,Authorization:"Bearer "+window.NURIM_SURVEY_ANON_KEY},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||"처리하지 못했습니다.");return d;}
+async function call(action,body={}){const r=await fetch(window.INCHEON_SUPABASE.url+"/functions/v1/nurim-survey",{method:"POST",headers:{"Content-Type":"application/json",apikey:window.INCHEON_SUPABASE.publishableKey,Authorization:"Bearer "+window.NURIM_SURVEY_ANON_KEY},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok||!d.ok)throw Object.assign(Error(d.error||"처리하지 못했습니다."),{code:d.code});return d;}
 function field(q){
  const req=q.required?" required":"",name="answer_"+q.id;
  const choices=q.type==="consent"?[["agree","동의"],["disagree","미동의"]]:(q.options||[]).map(v=>[v,v]);
@@ -22,7 +22,7 @@ function field(q){
 function render(){
  if(!preview&&!application){root.textContent="프로그램 신청 화면에서 기본정보를 먼저 작성해 주세요.";return;}
  const s=data.schema;pageIndex=0;pages=surveyPages(s);
- root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"'+' hidden'+'><legend>신청 기본정보 · 한 번만 입력</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p id="basicCarryNotice">'+(preview?'이 미리보기는 추가 설문 문항만 표시합니다. 실제 신청 시 첫 단계의 이름·생년월일·연락처가 신청서에 함께 반영됩니다.':'처음 입력한 이름·생년월일·연락처는 신청서와 신청명단에 함께 반영됩니다. 설문에서 다시 입력하지 않아도 됩니다.')+'</p><p>상세 응답과 작성된 신청서는 기관의 Google Drive에 저장됩니다. 누림지도에는 이름·생년월일·연락처와 접수 관리정보가 기록됩니다.</p><p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
+ root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"'+' hidden'+'><legend>신청 기본정보 · 한 번만 입력</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
  root.querySelector("form").onsubmit=submit;
  root.querySelector("#previousPage").onclick=()=>{if(!busy){pageIndex--;showPage();}};
  root.querySelector("#nextPage").onclick=()=>{if(!busy&&checkPage()){pageIndex++;showPage();}};
@@ -64,15 +64,18 @@ async function submit(e){
  try{
   validateAnswers(data.schema,basic,answers);
   if(preview){status.textContent="입력 내용을 확인했습니다. 실제 저장은 하지 않았습니다.";return;}
-  busy=true;button.disabled=true;status.textContent="Google Drive에 신청서를 저장하고 있습니다. 창을 닫지 마세요.";
-  try{sessionStorage.setItem(ticketKey,JSON.stringify({id,token}));}catch{}
+  busy=true;button.disabled=true;status.textContent="신청서를 제출하고 있습니다. 잠시만 기다려 주세요.";
+  const signature=JSON.stringify([basic.name.trim(),basic.birth,basic.phone.replace(/\D/g,'')]);
+  const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(signature)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+  if(ticket?.fingerprint&&ticket.fingerprint!==fingerprint){id=crypto.randomUUID();token=crypto.randomUUID();}
+  ticket={id,token,fingerprint};try{sessionStorage.setItem(ticketKey,JSON.stringify(ticket));}catch{}
   const r=await call("submit",{programId:data.program.id,revision:data.revision,basic,answers,id,token,extra:application.extra,file:application.file});
   try{sessionStorage.removeItem(ticketKey);}catch{}
   application=null;
-  root.innerHTML='<section class="surveySuccess"><div class="successMark" aria-hidden="true">✓</div><h1>신청이 완료되었습니다</h1><p>프로그램 신청이 정상적으로 접수되었습니다.</p><p>'+(r.status==='waitlist'?'대기 접수되었습니다.':r.status==='pending_selection'?'선정 결과는 추후 안내됩니다.':'')+'</p><button id="confirmComplete" type="button">확인</button></section>';
+  root.innerHTML='<section class="surveySuccess"><div class="successMark" aria-hidden="true">✓</div><h1>제출이 완료되었습니다.</h1><button id="confirmComplete" type="button">확인</button></section>';
   document.querySelector('#confirmComplete').onclick=()=>{if(parent!==window)parent.postMessage({type:'nurim-complete'},location.origin);else location.href='/';};document.querySelector('#confirmComplete').focus();
 
- }catch(err){status.textContent=err.message+" 전송이 지연되었다면 같은 내용으로 다시 제출해 주세요.";button.disabled=false;}finally{busy=false;}
+ }catch(err){if(err.code==="APPLICATION_IDENTITY_MISMATCH"){id=crypto.randomUUID();token=crypto.randomUUID();ticket=null;try{sessionStorage.removeItem(ticketKey);}catch{}status.textContent="기본정보를 새로 확인했습니다. 입력 내용은 유지됩니다. 신청서 제출을 다시 눌러 주세요.";}else status.textContent=err.message;button.disabled=false;}finally{busy=false;}
 }
 window.addEventListener("message",e=>{if(!preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-application"){application=e.data.application;if(data)render();return;}if(preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-preview"){data={schema:e.data.schema};render();}});
 if(!preview)call("public",{programId:params.get("program"),id,token}).then(d=>{data=d;render();}).catch(e=>{root.textContent=e.message;});

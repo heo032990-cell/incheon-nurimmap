@@ -25,7 +25,7 @@ async function refreshBinding(){
  select.value=value;select.disabled=false;document.querySelector("#surveyBindingStatus").textContent=list.some(s=>s.published_revision)?"선택한 설문이 프로그램 신청 화면에 표시됩니다.":"추가 설문 없이도 신청을 받을 수 있습니다. 설문을 연결하려면 먼저 신청에 사용을 눌러 주세요.";
  }catch(e){if(request!==bindingRequest)return;select.innerHTML='<option value="'+esc(value)+'">설문 목록을 불러오지 못했습니다</option>';select.value=value;}
 }
-const oldFill=fillProgram;fillProgram=function(p){oldFill(p);bindingWanted=p.surveyId||"";refreshBinding();binding.querySelector("#nurimProgramAddress").textContent=p.publicNumber?"프로그램 주소: "+location.origin+programPath(p):"저장하면 프로그램 주소가 자동 생성됩니다.";};
+const oldFill=fillProgram;fillProgram=function(p){oldFill(p);bindingWanted=p.surveyId||"";refreshBinding();};
 const oldReset=resetProgramForm;resetProgramForm=function(){oldReset();bindingWanted="";select.value="";};
 select.onchange=()=>{bindingWanted=select.value;const item=list.find(s=>s.id===bindingWanted);document.querySelector('#surveyBindingStatus').textContent=item?'신청서: '+item.title+(surveyRole==='super'?' · 담당자: '+(item.owner_name||'미지정'):''):'';};
 document.querySelector('[data-tab="programCreate"]').addEventListener("click",()=>refreshBinding());
@@ -157,3 +157,5 @@ window.addEventListener("popstate",()=>{changingHistory=true;[dialog,document.qu
 const oldRender=renderAll;renderAll=function(){oldRender();resolvePath();};resolvePath();
 window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault();e.returnValue="";}});
 db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT"){sessionGeneration++;bindingRequest++;bindingWanted="";select.value="";current=null;saved=null;list=[];viewRows=[];dirty=false;centerChoice="";managerChoice="";surveyRole="manager";section.innerHTML="";}});
+
+document.querySelector("#adminOpen").addEventListener("click",()=>{resetProgramForm();switchAdminTab("programCreate");setProgramRegistrationStep("basic");});
