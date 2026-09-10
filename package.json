@@ -1,6 +1,6 @@
 {
   "name": "incheon-nurimmap",
-  "version": "92.0.0",
+  "version": "93.0.0",
   "private": true,
   "scripts": {
     "build": "node scripts/build.cjs",

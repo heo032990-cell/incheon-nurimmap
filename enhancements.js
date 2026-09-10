@@ -183,7 +183,7 @@ function renderPrograms() {
     card.className = "card";
     card.innerHTML = `
       <div class="cardTop"><div class="badgeGroup"><span class="badge ${status.key}">${status.label}</span>${selectionBadge}</div><span class="count">${countText}</span></div>
-      <div class="programLabels"><p class="centerName"><span aria-hidden="true">●</span> ${esc(program.centerName)}</p><div class="programTagGroup"><span class="categoryTag">${esc(program.activityCategory || "기타")}</span><span class="ageTag">${esc(program.ageGroup === "전연령" ? "전연령·가족" : program.ageGroup)}</span></div></div>
+      <div class="programLabels"><p class="centerName"><span aria-hidden="true">●</span> ${esc(program.centerName)}</p><div class="programTagGroup"><span class="categoryTag">${esc(program.activityCategory || "기타")}</span><span class="ageTag">${esc(program.ageGroup)}</span></div></div>
       <h2>${esc(program.title)}</h2>
       <div class="programContentBox"><span>프로그램 내용</span><div tabindex="0" role="region" aria-label="${esc(program.title)} 프로그램 내용, 스크롤하여 전체 내용 보기">${programDescriptionHtml(program.description)}</div></div>
       <dl class="meta">

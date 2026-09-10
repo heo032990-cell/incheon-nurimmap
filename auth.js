@@ -50,11 +50,11 @@ function switchAdminTab(tabId = "programCreate") {
 function applySearchConfig() {
   const ageSelect = document.querySelector("#ageGroup");
   const currentAge = ageSelect.value;
-  ageSelect.innerHTML = '<option value="all">전체 연령</option>' + searchConfig.ageGroups.map((age) => `<option value="${esc(age)}">${esc(age === "전연령" ? "전연령·가족" : age)}</option>`).join("") + '<option value="__custom__">기타·직접입력</option>';
+  ageSelect.innerHTML = '<option value="all">전체 연령</option>' + searchConfig.ageGroups.map((age) => `<option value="${esc(age)}">${esc(age)}</option>`).join("") + '<option value="__custom__">기타·직접입력</option>';
   ageSelect.value = searchConfig.ageGroups.includes(currentAge) || currentAge === "__custom__" ? currentAge : "all";
   const programAgeSelect = document.querySelector("#programAgeGroup");
   const currentProgramAge = programAgeSelect.value;
-  programAgeSelect.innerHTML = '<option value="">선택</option>' + searchConfig.ageGroups.map((age) => `<option value="${esc(age)}">${esc(age === "전연령" ? "전연령·가족" : age)}</option>`).join("") + '<option value="__custom__">직접입력</option>';
+  programAgeSelect.innerHTML = '<option value="">선택</option>' + searchConfig.ageGroups.map((age) => `<option value="${esc(age)}">${esc(age)}</option>`).join("") + '<option value="__custom__">직접입력</option>';
   programAgeSelect.value = searchConfig.ageGroups.includes(currentProgramAge) || currentProgramAge === "__custom__" ? currentProgramAge : "";
   refreshCenterFilter();
 }
