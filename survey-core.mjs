@@ -13,10 +13,15 @@ export function validateSchema(s){
   if(["radio","checkbox","select","rank"].includes(q.type)){
    if(!Array.isArray(q.options)||!q.options.length||q.options.length>50||q.options.some(x=>typeof x!=="string"||!x.trim()||x.length>1000)||new Set(q.options).size!==q.options.length)throw Error("선택지는 중복 없이 1~50개, 각 1,000자 이내로 입력해 주세요.");
   }
+  if(q.type==='rank'&&q.rankCount!=null&&(!Number.isInteger(q.rankCount)||q.rankCount<1||q.rankCount>q.options.length))throw Error(q.label+': 순위 수는 선택지 수 이내의 정수로 입력해 주세요.');
+  if(q.type==='checkbox'){
+   if(q.selectionMode!=null&&!['any','all','exact'].includes(q.selectionMode))throw Error(q.label+': 선택 개수 설정을 확인해 주세요.');
+   if(q.selectionMode==='exact'&&(!Number.isInteger(q.selectionCount)||q.selectionCount<1||q.selectionCount>q.options.length))throw Error(q.label+': 선택 개수는 선택지 수 이내의 정수로 입력해 주세요.');
+  }
   if(q.type==="consent"&&q.blockRefusal&&!q.required)throw Error("미동의 시 접수를 제한하는 항목은 응답 필수로 설정해 주세요.");
   if(q.type==="consent"&&q.blockRefusal&&!q.help.trim())throw Error("미동의 시 접수가 제한되는 이유를 문항 설명에 적어 주세요.");
  }
- return {title:s.title.trim(),description:s.description,questions:s.questions.map(q=>({id:q.id,type:q.type,label:q.label,help:q.help,pageBreakBefore:q.pageBreakBefore===true,required:!!q.required,blockRefusal:!!q.blockRefusal,options:["radio","checkbox","select","rank"].includes(q.type)?q.options:[]}))};
+ return {title:s.title.trim(),description:s.description,questions:s.questions.map(q=>({id:q.id,type:q.type,label:q.label,help:q.help,pageBreakBefore:q.pageBreakBefore===true,required:!!q.required,blockRefusal:!!q.blockRefusal,...(q.type==='rank'&&q.rankCount!=null?{rankCount:q.rankCount}:{}),...(q.type==='checkbox'?{selectionMode:q.selectionMode||'any',...(q.selectionMode==='exact'?{selectionCount:q.selectionCount}:{})}:{}),options:["radio","checkbox","select","rank"].includes(q.type)?q.options:[]}))};
 }
 export function validateAnswers(schema,basic,answers){
  if(!basic||typeof basic.name!=="string"||!basic.name.trim()||basic.name.length>80)throw Error("이름을 확인해 주세요.");
@@ -34,6 +39,11 @@ export function validateAnswers(schema,basic,answers){
   if(q.type==="consent"&&!["agree","disagree"].includes(a))throw Error(q.label+": 동의 여부를 선택해 주세요.");
   if(q.type==="consent"&&q.blockRefusal&&a==="disagree")throw Error(q.label+": "+q.help);
   if(q.type==="date"&&!validDate(a))throw Error(q.label+": 날짜를 확인해 주세요.");
+  if(q.type==='rank'&&q.rankCount!=null&&a.length!==q.rankCount)throw Error(q.label+': '+q.rankCount+'순위까지 모두 선택해 주세요.');
+  if(q.type==='checkbox'){
+   const count=q.selectionMode==='all'?q.options.length:q.selectionMode==='exact'?q.selectionCount:null;
+   if(count!=null&&a.length!==count)throw Error(q.label+': '+(q.selectionMode==='all'?'모든 항목을':count+'개를')+' 선택해 주세요.');
+  }
   clean[q.id]=a;
  }
  if(JSON.stringify(clean).length>40000)throw Error("전체 답변은 40,000자 이내로 입력해 주세요.");
@@ -49,9 +59,17 @@ export function printHTML(s,record){
  const items=s.questions.map((q,i)=>{
   const a=record?answerText(q,record.answers[q.id]):q.type==="date"?"______년 ___월 ___일":q.type==="consent"?"□ 동의   □ 미동의":q.options?.length?q.options.map((o,n)=>(q.type==="rank"?"("+ (n+1) +"순위) ":"□ ")+o).join("    "):q.type==="notice"?"":"________________________________________________________________";
   const long=q.type==="textarea"||q.help.length>70||q.label.length>45||(q.options||[]).join("").length>60||a.length>70;
-  return '<section class="question '+(long?"wide":"")+'"><strong>'+esc((i+1)+". "+q.label)+(q.required?" *":"")+'</strong>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+'<div class="answer">'+esc(a)+'</div></section>';
+  return '<section class="question '+(long?"wide":"")+'"><strong>'+esc((i+1)+". "+q.label)+(q.required?" *":"")+'</strong>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+(selectionHint(q)?'<p>'+esc(selectionHint(q))+'</p>':'')+'<div class="answer">'+esc(a)+'</div></section>';
  }).join("");
  return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>'+esc(s.title)+'</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:Arial,"Malgun Gothic",sans-serif;color:#183b38;font-size:10pt;line-height:1.65}h1{font-size:19pt}p{white-space:pre-wrap;overflow-wrap:anywhere}.basic,.questions{display:flex;flex-wrap:wrap;gap:10px}.basic{padding:12px;border:1px solid #8ea9a3;font-size:9pt}.basic>div{flex:1 1 160px}.question{flex:1 1 45%;border-bottom:1px solid #a9bcb6;padding:10px 0;break-inside:avoid;min-width:0;overflow-wrap:anywhere}.question.wide{flex-basis:100%}.question p{font-size:9pt;margin:4px 0}.answer{white-space:pre-wrap;min-height:28px}.question:has(.answer:empty){break-inside:auto}@media print{button{display:none}}</style><body><button onclick="window.print()">인쇄 / PDF 저장</button><h1>'+esc(s.title)+'</h1><p>'+esc(s.description)+'</p><div class="basic">'+basic+'</div><div class="questions">'+items+'</div></body></html>';
 }
 
 export function surveyPages(schema){const pages=[[]];for(const q of schema.questions){if(q.pageBreakBefore)pages.push([]);pages.at(-1).push(q);}return pages;}
+
+
+export function selectionHint(q){
+ if(q.type==='rank')return q.rankCount?('1~'+q.rankCount+'순위를 중복 없이 선택해 주세요.'):'원하는 순위까지 중복 없이 선택해 주세요.';
+ if(q.type==='checkbox')return q.selectionMode==='all'?'모든 항목을 선택해 주세요.':q.selectionMode==='exact'?q.selectionCount+'개를 선택해 주세요.':'원하는 항목을 여러 개 선택할 수 있습니다.';
+ return '';
+}
+export function matchingSignature(name,signature){return typeof name==='string'&&typeof signature==='string'&&!!name.trim()&&name.trim().normalize('NFC')===signature.trim().normalize('NFC');}

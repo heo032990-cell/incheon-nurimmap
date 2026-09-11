@@ -1,4 +1,4 @@
-import {esc,types,validateSchema,csv,printHTML} from "./survey-core.mjs";
+import {esc,types,validateSchema,csv,printHTML,matchingSignature} from "./survey-core.mjs";
 const db=window.incheonSupabase;
 const flags=window.NURIM_FEATURES||{survey:true,charts:true,programAddress:true};
 let sessionGeneration=0,bindingRequest=0,activeQuestion=0,surveyRole="manager",centerChoice="",managerChoice="";
@@ -60,16 +60,16 @@ function renderEditor(history=[]){
  renderQuestions();
 }
 function renderQuestions(){
- section.querySelector('#surveyQuestions').innerHTML=(saved.questions.length?'':'<p class="notice">빈 설문입니다. 문항 추가로 직접 구성하세요. 개인정보 동의도 동의 여부 유형으로 추가할 수 있습니다. 이름·생년월일·연락처는 실제 신청 첫 단계에서 한 번만 받으며 설문에 다시 추가하지 않아도 신청서에 반영됩니다.</p>')+saved.questions.map((q,i)=>'<details class="surveyQuestion" data-index="'+i+'"'+(i===activeQuestion?' open':'')+'><summary><span>'+(i+1)+'</span><strong class="questionTitle">'+esc(q.label||'새 문항')+'</strong><span class="questionType">'+(q.pageBreakBefore?'새 페이지 · ':'')+esc(types[q.type])+(q.required?' · 필수':'')+'</span></summary><div class="questionEditorBody"><div class="questionHeaderFields"><label>질문<input data-field="label" value="'+esc(q.label)+'"></label><label>유형<select data-field="type">'+Object.entries(types).map(([v,l])=>'<option value="'+v+'"'+(q.type===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label></div><details class="questionHelp"><summary>설명·미동의 안내'+(q.help?' (작성됨)':' 추가')+'</summary><label>설명<textarea data-field="help">'+esc(q.help)+'</textarea></label></details><div class="questionToggles"><label><input type="checkbox" data-field="pageBreakBefore"'+(q.pageBreakBefore?' checked':'')+'>여기서 새 페이지 시작</label><label><input type="checkbox" data-field="required"'+(q.required?' checked':'')+'>응답 필수</label>'+(q.type==='consent'?'<label><input type="checkbox" data-field="blockRefusal"'+(q.blockRefusal?' checked':'')+'>미동의 시 접수 제한</label>':'')+'</div>'+(['radio','checkbox','select','rank'].includes(q.type)?'<div class="surveyOptions">'+q.options.map((o,n)=>'<div class="surveyOption"><label>선택지 '+(n+1)+'<textarea rows="1" data-option="'+n+'">'+esc(o)+'</textarea></label><button data-action="removeOption" data-index="'+i+'" data-option="'+n+'">삭제</button></div>').join('')+'<button data-action="addOption" data-index="'+i+'">선택지 추가</button></div>':'')+'<div class="formActions"><button data-action="up" data-index="'+i+'">위로</button><button data-action="down" data-index="'+i+'">아래로</button><button data-action="remove" data-index="'+i+'">문항 삭제</button></div></div></details>').join('');
+ section.querySelector('#surveyQuestions').innerHTML=(saved.questions.length?'':'<p class="notice">빈 설문입니다. 문항 추가로 직접 구성하세요. 개인정보 동의도 동의 여부 유형으로 추가할 수 있습니다. 이름·생년월일·연락처는 실제 신청 첫 단계에서 한 번만 받으며 설문에 다시 추가하지 않아도 신청서에 반영됩니다.</p>')+saved.questions.map((q,i)=>'<details class="surveyQuestion" data-index="'+i+'"'+(i===activeQuestion?' open':'')+'><summary><span>'+(i+1)+'</span><strong class="questionTitle">'+esc(q.label||'새 문항')+'</strong><span class="questionType">'+(q.pageBreakBefore?'새 페이지 · ':'')+esc(types[q.type])+(q.required?' · 필수':'')+'</span></summary><div class="questionEditorBody"><div class="questionHeaderFields"><label>질문<input data-field="label" value="'+esc(q.label)+'"></label><label>유형<select data-field="type">'+Object.entries(types).map(([v,l])=>'<option value="'+v+'"'+(q.type===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label></div><details class="questionHelp"><summary>설명·미동의 안내'+(q.help?' (작성됨)':' 추가')+'</summary><label>설명<textarea data-field="help">'+esc(q.help)+'</textarea></label></details><div class="questionToggles"><label><input type="checkbox" data-field="pageBreakBefore"'+(q.pageBreakBefore?' checked':'')+'>여기서 새 페이지 시작</label><label><input type="checkbox" data-field="required"'+(q.required?' checked':'')+'>응답 필수</label>'+(q.type==='consent'?'<label><input type="checkbox" data-field="blockRefusal"'+(q.blockRefusal?' checked':'')+'>미동의 시 접수 제한</label>':'')+'</div>'+(['radio','checkbox','select','rank'].includes(q.type)?'<div class="surveyOptions">'+q.options.map((o,n)=>'<div class="surveyOption"><label>선택지 '+(n+1)+'<textarea rows="1" data-option="'+n+'">'+esc(o)+'</textarea></label><button data-action="removeOption" data-index="'+i+'" data-option="'+n+'">삭제</button></div>').join('')+'<button data-action="addOption" data-index="'+i+'">선택지 추가</button></div>':'')+(q.type==='rank'?'<label>몇 순위까지 선택하나요?<select data-field="rankCount"><option value="">기존 방식: 원하는 순위까지</option>'+q.options.map((_,n)=>'<option value="'+(n+1)+'"'+(q.rankCount===n+1?' selected':'')+'>'+(n+1)+'순위까지</option>').join('')+'</select></label>':'')+(q.type==='checkbox'?'<label>선택 개수<select data-field="selectionMode">'+[['any','자유롭게 여러 개'],['all','모두 선택'],['exact','정해진 개수 선택']].map(([v,l])=>'<option value="'+v+'"'+((q.selectionMode||'any')===v?' selected':'')+'>'+l+'</option>').join('')+'</select></label>'+(q.selectionMode==='exact'?'<label>선택할 개수<input data-field="selectionCount" type="number" min="1" max="'+q.options.length+'" value="'+(q.selectionCount||1)+'"></label>':''):'')+'<div class="formActions"><button data-action="up" data-index="'+i+'">위로</button><button data-action="down" data-index="'+i+'">아래로</button><button data-action="remove" data-index="'+i+'">문항 삭제</button></div></div></details>').join('');
 }
 section.addEventListener('toggle',e=>{if(!e.target.matches('.surveyQuestion')||!e.target.open)return;activeQuestion=Number(e.target.dataset.index);section.querySelectorAll('.surveyQuestion[open]').forEach(el=>{if(el!==e.target)el.open=false;});},true);
 function read(){
  if(!saved)return;
  saved.title=section.querySelector("#surveyTitle").value.trim();saved.description=section.querySelector("#surveyDescription").value;
- section.querySelectorAll(".surveyQuestion").forEach(el=>{const q=saved.questions[Number(el.dataset.index)];el.querySelectorAll("[data-field]").forEach(f=>q[f.dataset.field]=f.type==="checkbox"?f.checked:f.value);el.querySelectorAll("textarea[data-option]").forEach(f=>q.options[Number(f.dataset.option)]=f.value);});
+ section.querySelectorAll(".surveyQuestion").forEach(el=>{const q=saved.questions[Number(el.dataset.index)];el.querySelectorAll("[data-field]").forEach(f=>q[f.dataset.field]=f.type==="checkbox"?f.checked:["rankCount","selectionCount"].includes(f.dataset.field)?(f.value===""?undefined:Number(f.value)):f.value);el.querySelectorAll("textarea[data-option]").forEach(f=>q.options[Number(f.dataset.option)]=f.value);});
 }
 section.addEventListener("input",e=>{if(e.target.dataset.field==="label")e.target.closest(".surveyQuestion").querySelector(".questionTitle").textContent=e.target.value||"새 문항";dirty=true;const state=section.querySelector("#surveySaveState");if(state)state.textContent="저장하지 않은 수정";});
-section.addEventListener("change",e=>{if(e.target.dataset.field==="type"){read();renderQuestions();}});
+section.addEventListener("change",e=>{if(["type","selectionMode"].includes(e.target.dataset.field)){read();renderQuestions();}});
 section.addEventListener("click",async e=>{
  const button=e.target.closest("button[data-action]");if(!button)return;
  const action=button.dataset.action,i=button.dataset.index===undefined?activeQuestion:Number(button.dataset.index);button.disabled=true;
@@ -117,16 +117,19 @@ async function responses(rev){
 const dialog=document.createElement("dialog");dialog.id="nurimSurveyDialog";dialog.innerHTML='<div class="dialogTitle"><h2>프로그램 신청서</h2><button type="button">닫기</button></div><iframe title="프로그램 신청 설문"></iframe>';document.body.append(dialog);
 dialog.querySelector("button").onclick=()=>dialog.close();
 function showSurveyFrame(p,schema,application){
- const frame=dialog.querySelector("iframe");frame.src="/survey.html"+(p?"?embedded=1&program="+encodeURIComponent(p.id):"?preview=1");
+ const frame=dialog.querySelector("iframe");
+ if(application&&resumableProgramId===p?.id){frame.contentWindow.postMessage({type:"nurim-application-update",application},location.origin);dialog.showModal();return;}
+ resumableProgramId=null;frame.src="/survey.html"+(p?"?embedded=1&program="+encodeURIComponent(p.id):"?preview=1");
  frame.onload=()=>{if(application)frame.contentWindow.postMessage({type:"nurim-application",application},location.origin);if(schema)frame.contentWindow.postMessage({type:"nurim-preview",schema},location.origin);};
  dialog.showModal();
 }
 
-let surveyHandoff=false,handoffBusy=false;
+let surveyHandoff=false,handoffBusy=false,resumableProgramId=null,returningToApplication=false;
 const oldSubmitApplication=submitApplication;
 submitApplication=async function(){
  const p=activeProgram;if(!p?.surveyId)return oldSubmitApplication();if(handoffBusy)return;
  const c=collectConsentResponses(p),signature=document.querySelector('#signature').value.trim();
+ if(p.consentEnabled&&activeConsentItems(p).length&&!matchingSignature(document.querySelector('#name').value,signature)){alert('전자서명은 1페이지에 입력한 신청자 이름과 같아야 합니다.');document.querySelector('#signature').focus();return;}
  if(c.missing||(p.consentEnabled&&!signature)){alert('개인정보 동의 항목과 서명을 확인해 주세요.');return;}
  handoffBusy=true;
  try{
@@ -135,17 +138,26 @@ submitApplication=async function(){
   suppressedCloses++;document.querySelector('#applyDialog').close();surveyHandoff=true;showSurveyFrame(p,null,application);
  }catch(e){showError(e);}finally{handoffBusy=false;}
 };
-window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==dialog.querySelector('iframe').contentWindow||e.data?.type!=='nurim-complete')return;surveyHandoff=false;dialog.close();});
+window.addEventListener('message',e=>{
+ if(e.origin!==location.origin||e.source!==dialog.querySelector('iframe').contentWindow||e.data?.type!=='nurim-back'||!surveyHandoff||!activeProgram)return;
+ resumableProgramId=activeProgram.id;returningToApplication=true;surveyHandoff=false;
+ suppressedCloses++;dialog.close();
+ const use=activeProgram.consentEnabled&&activeConsentItems(activeProgram).length>0;
+ setApplyStep(use?'consent':'info');document.querySelector('#applyDialog').showModal();
+ document.querySelector(use?'#signature':'#name').focus();
+});
+window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==dialog.querySelector('iframe').contentWindow||e.data?.type!=='nurim-complete')return;surveyHandoff=false;resumableProgramId=null;dialog.close();});
 dialog.addEventListener('cancel',()=>{surveyHandoff=false;});
 function programPath(p){return "/"+p.publicNumber+"/"+p.publicYear+"/"+encodeURIComponent(p.publicCenter||p.centerName);}
 let changingHistory=false,openedFromPath=false,suppressedCloses=0,pathPending=true;
 const originalOpen=openApply;
 openApply=function(p){
  if(flags.programAddress&&p.publicNumber&&!changingHistory){history.pushState({nurimProgram:p.id},"",programPath(p));openedFromPath=true;}
+ resumableProgramId=null;
  originalOpen(p);if(p.surveyId)document.querySelector("#applySubmitButton").textContent="다음: 추가 설문";
 };
 function closed(){if(suppressedCloses){suppressedCloses--;return;}if(changingHistory)return;if(openedFromPath){openedFromPath=false;history.back();}else if(/^\/\d+\/\d{4}\//.test(location.pathname))history.replaceState({},"","/");}
-dialog.addEventListener("close",()=>{if(!dialog.open)dialog.querySelector("iframe").src="about:blank";closed();});
+dialog.addEventListener("close",()=>{if(returningToApplication){returningToApplication=false;}else if(!dialog.open){resumableProgramId=null;dialog.querySelector("iframe").src="about:blank";}closed();});
 document.querySelector("#applyDialog").addEventListener("close",closed);
 function resolvePath(){
  if(!pathPending||document.querySelector("#adminDialog").open)return;
@@ -165,3 +177,4 @@ function clearApplicationNavigation(){
  if(/^\/\d+\/\d{4}\//.test(location.pathname))history.replaceState({},"","/");
 }
 document.querySelector("#adminOpen").addEventListener("click",()=>{clearApplicationNavigation();resetProgramForm();switchAdminTab("programCreate");setProgramRegistrationStep("basic");});
+

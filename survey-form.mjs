@@ -1,4 +1,4 @@
-import {esc,validateAnswers,surveyPages} from "./survey-core.mjs";
+import {esc,validateAnswers,surveyPages,selectionHint} from "./survey-core.mjs";
 const params=new URLSearchParams(location.search),preview=params.has("preview");
 const ticketKey='nurim-survey-ticket:'+params.get('program');
 let ticket=null;try{ticket=JSON.parse(sessionStorage.getItem(ticketKey)||'null');}catch{}
@@ -14,17 +14,17 @@ function field(q){
  if(q.type==="notice")html="";
  else if(q.type==="textarea")html='<textarea name="'+name+'"'+req+' maxlength="10000"></textarea>';
  else if(q.type==="select")html='<select name="'+name+'"'+req+'>'+opts+'</select>';
- else if(q.type==="rank")html=q.options.map((v,i)=>'<label>'+(i+1)+'순위<select name="'+name+'"'+(i===0?req:"")+'>'+opts+'</select></label>').join("");
+ else if(q.type==="rank")html=q.options.slice(0,q.rankCount||q.options.length).map((v,i)=>'<label>'+(i+1)+'순위<select name="'+name+'"'+(q.rankCount?req:i===0?req:"")+'>'+opts+'</select></label>').join("");
  else if(["radio","checkbox","consent"].includes(q.type))html=choices.map(([v,l])=>'<label class="choice"><input type="'+(q.type==="checkbox"?"checkbox":"radio")+'" name="'+name+'" value="'+esc(v)+'"'+(q.type!=="checkbox"?req:"")+'> '+esc(l)+'</label>').join("");
  else html='<input name="'+name+'" type="'+(q.type==="date"?"date":"text")+'"'+req+' maxlength="10000">';
- return '<fieldset><legend>'+esc(q.label)+(q.required?' <span aria-label="필수">*</span>':"")+'</legend>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+html+'</fieldset>';
+ return '<fieldset><legend>'+esc(q.label)+(q.required?' <span aria-label="필수">*</span>':"")+'</legend>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+(selectionHint(q)?'<p class="selectionHint">'+esc(selectionHint(q))+'</p>':'')+html+'</fieldset>';
 }
 function render(){
  if(!preview&&!application){root.textContent="프로그램 신청 화면에서 기본정보를 먼저 작성해 주세요.";return;}
  const s=data.schema;pageIndex=0;pages=surveyPages(s);
  root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"'+' hidden'+'><legend>신청 기본정보 · 한 번만 입력</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
  root.querySelector("form").onsubmit=submit;
- root.querySelector("#previousPage").onclick=()=>{if(!busy){pageIndex--;showPage();}};
+ root.querySelector("#previousPage").onclick=()=>{if(!busy){if(pageIndex===0){parent.postMessage({type:'nurim-back'},location.origin);}else{pageIndex--;showPage();}}};
  root.querySelector("#nextPage").onclick=()=>{if(!busy&&checkPage()){pageIndex++;showPage();}};
  showPage(false);
 }
@@ -40,7 +40,8 @@ function basics(f){if(application)return application.basic;if(preview)return {na
 function showPage(focus=true){
  root.querySelectorAll('.surveyPage').forEach((el,i)=>{el.hidden=i!==pageIndex;});
  root.querySelector('#pageProgress').textContent=(pageIndex+1)+' / '+pages.length+' 설문 페이지';
- root.querySelector('#previousPage').hidden=pageIndex===0;
+ root.querySelector('#previousPage').hidden=pageIndex===0&&(preview||parent===window);
+ root.querySelector('#previousPage').textContent=pageIndex===0?'이전: 신청정보·동의':'이전 설문 페이지';
  root.querySelector('#nextPage').hidden=pageIndex===pages.length-1;
  root.querySelector('button[type="submit"]').hidden=pageIndex!==pages.length-1;
  root.querySelector('#status').textContent='';
@@ -82,5 +83,6 @@ async function submit(e){
 
  }catch(err){if(err.code==="APPLICATION_IDENTITY_MISMATCH"){id=crypto.randomUUID();token=crypto.randomUUID();ticket=null;try{sessionStorage.removeItem(ticketKey);}catch{}status.textContent="기본정보를 새로 확인했습니다. 입력 내용은 유지됩니다. 신청서 제출을 다시 눌러 주세요.";}else status.textContent=err.message;button.disabled=false;}finally{busy=false;}
 }
-window.addEventListener("message",e=>{if(!preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-application"){application=e.data.application;if(data)render();return;}if(preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-preview"){data={schema:e.data.schema};render();}});
+window.addEventListener("message",e=>{if(!preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-application-update"){application=e.data.application;return;}if(!preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-application"){application=e.data.application;if(data)render();return;}if(preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-preview"){data={schema:e.data.schema};render();}});
 if(!preview)call("public",{programId:params.get("program"),id,token}).then(d=>{data=d;render();}).catch(e=>{root.textContent=e.message;});
+

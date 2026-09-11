@@ -89,10 +89,10 @@
     const box = document.querySelector("#programDisabilityTypeOptions");
     box.innerHTML = taxonomy.disabilityTypes.map((value) => `<label><input type="checkbox" value="${esc(value)}" ${selected.includes(value) ? "checked" : ""}>${esc(value)}</label>`).join("");
     box.querySelectorAll('input[type="checkbox"]').forEach((input) => input.addEventListener("change", () => {
-      if (input.value === "전체 장애유형" && input.checked) box.querySelectorAll('input[type="checkbox"]').forEach((item) => { if (item !== input) item.checked = false; });
-      if (input.value !== "전체 장애유형" && input.checked) box.querySelector('input[value="전체 장애유형"]')?.removeAttribute("checked");
+      if (input.value === "전체 장애유형" && input.checked) box.querySelectorAll('input[type="checkbox"]').forEach((item) => { if (item !== input && item.value !== "비장애") item.checked = false; });
+      if (input.value !== "전체 장애유형" && input.value !== "비장애" && input.checked) box.querySelector('input[value="전체 장애유형"]')?.removeAttribute("checked");
       const all = box.querySelector('input[value="전체 장애유형"]');
-      if (input.value !== "전체 장애유형" && input.checked && all) all.checked = false;
+      if (input.value !== "전체 장애유형" && input.value !== "비장애" && input.checked && all) all.checked = false;
       if (![...box.querySelectorAll('input:checked')].length && all) all.checked = true;
     }));
   }
@@ -230,3 +230,4 @@
 
   loadTaxonomy();
 })();
+

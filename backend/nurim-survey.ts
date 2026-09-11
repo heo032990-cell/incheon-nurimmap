@@ -1,7 +1,7 @@
 import {googleBasicApplication} from "./storage-policy.mjs";
 
 import {createClient} from "npm:@supabase/supabase-js@2";
-import {validateSchema,validateAnswers} from "./survey-core.mjs";
+import {validateSchema,validateAnswers,matchingSignature} from "./survey-core.mjs";
 const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const baseHeaders={"Access-Control-Allow-Headers":"authorization,apikey,content-type,x-client-info,x-nurim-user-token","Access-Control-Allow-Methods":"POST,OPTIONS","Content-Type":"application/json","Cache-Control":"no-store"};
 
@@ -91,6 +91,7 @@ Deno.serve(async req=>{
    const consentItems=(p.consent_items||[]).filter((x:any)=>x.enabled!==false);
    const consentKeys=consentItems.flatMap((x:any)=>x.type==="matrix"?(x.rows||[]).map((r:any)=>r.id):[x.id]);
    if(consentKeys.length&&(!extra.signature.trim()||consentKeys.some((key:string)=>!["agree","disagree"].includes(extra.consentResponses?.[key]))))throw Error("개인정보 동의 항목과 서명을 확인해 주세요.");
+   if(consentKeys.length&&!matchingSignature(b.basic.name,extra.signature))throw Error("전자서명은 신청자 이름과 같아야 합니다.");
    const cleanExtra={signature:extra.signature,consentItems,consentResponses:Object.fromEntries(consentKeys.map((key:string)=>[key,extra.consentResponses[key]]))};
    let file=null;
    if(p.form_enabled){const f=b.file;if(!f||typeof f.name!=="string"||! /\.(pdf|hwp|hwpx|doc|docx|jpg|jpeg|png|webp|heic|heif|zip)$/i.test(f.name)||f.name.length>200||typeof f.dataUrl!=="string"||f.dataUrl.length>14000000||!/^data:[^;,]*;base64,[A-Za-z0-9+/=]+$/.test(f.dataUrl))throw Error("10MB 이하의 신청서 파일을 첨부해 주세요.");if(f.dataUrl.split(",")[1].length*3/4>10*1024*1024+2)throw Error("첨부 파일은 10MB 이하여야 합니다.");file={name:f.name,mimeType:String(f.type||"application/octet-stream").slice(0,100),base64:f.dataUrl.split(",")[1]};}
@@ -175,4 +176,5 @@ Deno.serve(async req=>{
   throw Error("지원하지 않는 작업입니다.");
  }catch(e){return result({ok:false,error:e instanceof Error?e.message:"처리하지 못했습니다.",code:(e as any)?.code==="APPLICATION_IDENTITY_MISMATCH"?"APPLICATION_IDENTITY_MISMATCH":undefined},400);}
 });
+
 

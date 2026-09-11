@@ -82,6 +82,7 @@ function applyAdminAccess() {
   const centerInput = document.querySelector("#centerName");
   centerInput.readOnly = !isSuperAdmin();
   if (!isSuperAdmin()) centerInput.value = adminSession.centerName;
+  syncRegistrationCenter();
   const driveLink = document.querySelector("#assignedDriveLink");
   const assignedDriveUrl = isSuperAdmin() ? "" : validDriveFolderUrl(activeManagerAccount()?.driveFolderUrl || "");
   driveLink.classList.toggle("hidden", !assignedDriveUrl);
@@ -443,3 +444,30 @@ function downloadBasicRoster(program,items){
  const rows=[['신청번호','프로그램','이름','생년월일','연락처','접수상태'],...items.map(a=>[a.id,program.title,a.name,a.birth,a.phone,a.lifecycleStatus==='cancelled'?'취소':a.lifecycleStatus==='deleted'?'삭제':a.applicationStatus||'접수'])];
  const url=URL.createObjectURL(new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=(program.title||'프로그램')+'_참여명단.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+
+// Keep the authenticated institution through new/copy/reset registration flows.
+function syncRegistrationCenter(){
+ const input=document.querySelector('#centerName');if(!input)return;
+ const manager=!!adminSession&&!isSuperAdmin();
+ input.readOnly=manager;
+ input.placeholder=manager?'등록된 기관명이 없습니다. 최고관리자에게 확인해 주세요.':'예: 인천광역시장애인종합복지관';
+ if(manager)input.value=adminSession.centerName||'';
+}
+const resetBeforeInstitution=resetProgramForm;
+resetProgramForm=function(){resetBeforeInstitution();syncRegistrationCenter();};
+const fillBeforeInstitution=fillProgram;
+fillProgram=function(p){fillBeforeInstitution(p);syncRegistrationCenter();};
+document.querySelector('#programForm').addEventListener('reset',()=>queueMicrotask(syncRegistrationCenter));
+document.querySelectorAll('[data-tab="programCreate"]').forEach(b=>b.addEventListener('click',syncRegistrationCenter));
+
+function validateApplicationSignature(){
+ const p=typeof activeProgram!=='undefined'?activeProgram:null;
+ if(!p?.consentEnabled||!activeConsentItems(p).length)return true;
+ const name=document.querySelector('#name').value.trim().normalize('NFC');
+ const signature=document.querySelector('#signature');
+ if(!name||name!==signature.value.trim().normalize('NFC')){alert('전자서명은 1페이지에 입력한 신청자 이름과 같아야 합니다.');signature.focus();return false;}
+ return true;
+}
+document.addEventListener('submit',e=>{if(e.target.id==='applyForm'&&!validateApplicationSignature()){e.preventDefault();e.stopImmediatePropagation();}},true);
+document.addEventListener('click',e=>{if(e.target.closest('#applySubmitButton')&&!validateApplicationSignature()){e.preventDefault();e.stopImmediatePropagation();}},true);

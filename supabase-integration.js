@@ -1043,6 +1043,7 @@
       }
     }
 
+    if (!validateApplicationSignature()) return;
     if (applicationSubmitting) return;
     setApplicationSubmitting_(true);
     try {
@@ -1605,5 +1606,6 @@
     if (await loadPublicApplicationCounts()) renderPrograms();
   }, 30000);
 })();
+
 
 
