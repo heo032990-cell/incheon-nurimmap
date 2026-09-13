@@ -11,7 +11,8 @@ npm run build
 Git과 Node.js가 필요합니다. 비공개 저장소 접근 권한이 있는 GitHub 계정으로 로그인하세요. 이미 내려받았다면 작업을 저장한 뒤 해당 브랜치에서 `git pull --ff-only`로 업데이트하세요. 이 저장소의 루트가 기존 PC의 staging-v78-survey에 해당합니다.
 
 ## 현재 기준
-- 최신 웹은 v94입니다. 기관명 유지, 장애유형 조합, 설문 선택 개수, 이전 단계, 서명 일치 검증을 반영했습니다. 운영 배포·검증·복구 기록은 RELEASE-v94.md를 확인하세요. 설문 서버는 nurim-survey v12입니다.
+- 최신 웹은 v95입니다. 검색용 사이트명·전용 아이콘을 반영했습니다(RELEASE-v95.md). 서버는 v94 작업 기준 그대로입니다.
+- v94 신청 기능: 기관명 유지, 장애유형 조합, 설문 선택 개수, 이전 단계, 서명 일치 검증을 반영했습니다. 운영 배포·검증·복구 기록은 RELEASE-v94.md를 확인하세요. 설문 서버는 nurim-survey v12입니다.
 - v93까지의 기반 기능: 최고관리자가 설정한 이용 연령 명칭을 등록·검색·카드에 그대로 표시합니다. v92 반응형 활동분류 수정도 포함합니다. 배포 결과는 RELEASE-v93.md를 확인하세요.
 - Apps Script v91: `backend/google-apps-script-v91.gs`. 같은 설문의 응답·PDF·CSV를 실제 신청 프로그램별로 저장. 사용자가 원하는 동작 완료를 확인했습니다. 사용자는 Google 기존 자료를 삭제했다고 알렸습니다.
 - 기존 Supabase 서버: v90. 대시보드 전체 교체용 `backend/swift-processor-v90-single-file.ts`, 개발용 `backend/swift-processor-v90.ts`와 `backend/storage-policy.mjs`.
