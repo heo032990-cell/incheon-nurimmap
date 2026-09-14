@@ -8,25 +8,37 @@ const root=document.querySelector("main");
 async function call(action,body={}){const r=await fetch(window.INCHEON_SUPABASE.url+"/functions/v1/nurim-survey",{method:"POST",headers:{"Content-Type":"application/json",apikey:window.INCHEON_SUPABASE.publishableKey,Authorization:"Bearer "+window.NURIM_SURVEY_ANON_KEY},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok||!d.ok)throw Object.assign(Error(d.error||"처리하지 못했습니다."),{code:d.code});return d;}
 function field(q){
  const req=q.required?" required":"",name="answer_"+q.id;
+ const titleId=name+"_title",helpId=name+"_help",hintId=name+"_hint";
+ const descriptions=[q.help?helpId:"",selectionHint(q)?hintId:""].filter(Boolean).join(" ");
+ const described=descriptions?' aria-describedby="'+esc(descriptions)+'"':"";
+ const labelled=' aria-labelledby="'+esc(titleId)+'"'+described;
  const choices=q.type==="consent"?[["agree","동의"],["disagree","미동의"]]:(q.options||[]).map(v=>[v,v]);
  const opts='<option value="">선택</option>'+choices.map(([v,l])=>'<option value="'+esc(v)+'">'+esc(l)+'</option>').join("");
  let html;
  if(q.type==="notice")html="";
- else if(q.type==="textarea")html='<textarea name="'+name+'"'+req+' maxlength="10000"></textarea>';
- else if(q.type==="select")html='<select name="'+name+'"'+req+'>'+opts+'</select>';
- else if(q.type==="rank")html=q.options.slice(0,q.rankCount||q.options.length).map((v,i)=>'<label>'+(i+1)+'순위<select name="'+name+'"'+(q.rankCount?req:i===0?req:"")+'>'+opts+'</select></label>').join("");
- else if(["radio","checkbox","consent"].includes(q.type))html=choices.map(([v,l])=>'<label class="choice"><input type="'+(q.type==="checkbox"?"checkbox":"radio")+'" name="'+name+'" value="'+esc(v)+'"'+(q.type!=="checkbox"?req:"")+'> '+esc(l)+'</label>').join("");
- else html='<input name="'+name+'" type="'+(q.type==="date"?"date":"text")+'"'+req+' maxlength="10000">';
- return '<fieldset><legend>'+esc(q.label)+(q.required?' <span aria-label="필수">*</span>':"")+'</legend>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+(selectionHint(q)?'<p class="selectionHint">'+esc(selectionHint(q))+'</p>':'')+html+'</fieldset>';
+ else if(q.type==="textarea")html='<textarea name="'+name+'"'+labelled+req+' maxlength="10000"></textarea>';
+ else if(q.type==="select")html='<select name="'+name+'"'+labelled+req+'>'+opts+'</select>';
+ else if(q.type==="rank")html=q.options.slice(0,q.rankCount||q.options.length).map((v,i)=>'<label><span id="'+name+'_rank_'+i+'">'+(i+1)+'순위</span><select name="'+name+'" aria-labelledby="'+esc(titleId)+' '+name+'_rank_'+i+'"'+described+(q.rankCount?req:i===0?req:"")+'>'+opts+'</select></label>').join("");
+ else if(["radio","checkbox","consent"].includes(q.type))html=choices.map(([v,l])=>'<label class="choice"><input type="'+(q.type==="checkbox"?"checkbox":"radio")+'" name="'+name+'" value="'+esc(v)+'"'+described+(q.type!=="checkbox"?req:"")+'> '+esc(l)+'</label>').join("");
+ else html='<input name="'+name+'" type="'+(q.type==="date"?"date":"text")+'"'+labelled+req+' maxlength="10000">';
+ return '<fieldset><legend id="'+esc(titleId)+'">'+esc(q.label)+(q.required?' <span aria-label="필수">*</span>':"")+'</legend>'+(q.help?'<p id="'+esc(helpId)+'">'+esc(q.help)+'</p>':"")+(selectionHint(q)?'<p id="'+esc(hintId)+'" class="selectionHint">'+esc(selectionHint(q))+'</p>':'')+html+'</fieldset>';
 }
 function render(){
  if(!preview&&!application){root.textContent="프로그램 신청 화면에서 기본정보를 먼저 작성해 주세요.";return;}
  const s=data.schema;pageIndex=0;pages=surveyPages(s);
  root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"'+' hidden'+'><legend>신청 기본정보 · 한 번만 입력</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
  root.querySelector("form").onsubmit=submit;
+ root.querySelector("form").addEventListener('input',event=>{
+  if(!event.target.name)return;
+  for(const control of root.querySelectorAll('[aria-invalid]'))if(control.name===event.target.name){
+   control.removeAttribute('aria-invalid');
+   const ids=(control.getAttribute('aria-describedby')||'').split(/\s+/).filter(id=>id&&id!=='status');
+   if(ids.length)control.setAttribute('aria-describedby',ids.join(' '));else control.removeAttribute('aria-describedby');
+  }
+ });
  root.querySelector("#previousPage").onclick=()=>{if(!busy){if(pageIndex===0){parent.postMessage({type:'nurim-back'},location.origin);}else{pageIndex--;showPage();}}};
  root.querySelector("#nextPage").onclick=()=>{if(!busy&&checkPage()){pageIndex++;showPage();}};
- showPage(false);
+ showPage();
 }
 function values(f,questions){
  const answers={};for(const q of questions){
@@ -46,6 +58,7 @@ function showPage(focus=true){
  root.querySelector('button[type="submit"]').hidden=pageIndex!==pages.length-1;
  root.querySelector('#status').textContent='';
  const panel=root.querySelector('[data-page="'+pageIndex+'"]');panel.tabIndex=-1;
+ panel.setAttribute('role','group');panel.setAttribute('aria-label',(pageIndex+1)+' / '+pages.length+' 설문 페이지');
  if(focus){panel.focus();window.scrollTo({top:0,behavior:'auto'});}
 }
 function checkPage(){
@@ -53,7 +66,14 @@ function checkPage(){
  try{
   for(const input of panel.querySelectorAll('input,select,textarea')){if(input.closest('[hidden]'))continue;if(!input.checkValidity()){input.reportValidity();return false;}}
   validateAnswers({...data.schema,questions:pages[pageIndex]},basics(f),values(f,pages[pageIndex]));return true;
- }catch(e){f.querySelector('#status').textContent=e.message;return false;}
+ }catch(e){
+  const status=f.querySelector('#status');status.textContent=e.message;
+  const question=pages[pageIndex].find(q=>e.message.startsWith(q.label+':'));
+  const control=question&&[...panel.querySelectorAll('input,select,textarea')].find(el=>el.name==='answer_'+question.id);
+  if(control){control.setAttribute('aria-invalid','true');control.setAttribute('aria-describedby',((control.getAttribute('aria-describedby')||'')+' status').trim());control.focus();}
+  else{status.tabIndex=-1;status.focus();}
+  return false;
+ }
 }
 async function submit(e){
  e.preventDefault();if(busy)return;
@@ -85,4 +105,3 @@ async function submit(e){
 }
 window.addEventListener("message",e=>{if(!preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-application-update"){application=e.data.application;return;}if(!preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-application"){application=e.data.application;if(data)render();return;}if(preview&&e.origin===location.origin&&e.source===parent&&e.data?.type==="nurim-preview"){data={schema:e.data.schema};render();}});
 if(!preview)call("public",{programId:params.get("program"),id,token}).then(d=>{data=d;render();}).catch(e=>{root.textContent=e.message;});
-

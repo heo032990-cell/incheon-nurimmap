@@ -57,7 +57,9 @@ function renderProgramPagination(totalPages) {
   const moveTo = (page) => {
     programPage = Math.min(totalPages, Math.max(1, page));
     renderPrograms();
-    document.querySelector("#resultSummary").scrollIntoView({ behavior: "smooth", block: "start" });
+    const heading = document.querySelector("#programResultsTitle");
+    heading.focus();
+    heading.scrollIntoView({ block: "start" });
   };
   const makeButton = (label, page, options = {}) => {
     const button = document.createElement("button");
@@ -181,6 +183,7 @@ function renderPrograms() {
     const publicTemplate = program.formEnabled && program.formTemplate?.dataUrl ? program.formTemplate : null;
     const card = document.createElement("article");
     card.className = "card";
+    card.dataset.programId = program.id;
     card.innerHTML = `
       <div class="cardTop"><div class="badgeGroup"><span class="badge ${status.key}">${status.label}</span>${selectionBadge}</div><span class="count">${countText}</span></div>
       <div class="programLabels"><p class="centerName"><span aria-hidden="true">●</span> ${esc(program.centerName)}</p><div class="programTagGroup"><span class="categoryTag">${esc(program.activityCategory || "기타")}</span><span class="ageTag">${esc(program.ageGroup)}</span></div></div>
@@ -399,3 +402,4 @@ document.querySelector("#resetProgram").addEventListener("click", () => {
   updatePromotionImageInfo();
 });
 updatePromotionImageInfo();
+

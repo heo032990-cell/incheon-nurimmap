@@ -5,8 +5,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "browser",
-  "background_color": "#ffffff",
-  "theme_color": "#087f83",
+  "background_color": "#fcfaf4",
+  "theme_color": "#fcfaf4",
   "icons": [
     {
       "src": "/assets/nurim-icon-192.png",
@@ -20,3 +20,5 @@
     }
   ]
 }
+
+
