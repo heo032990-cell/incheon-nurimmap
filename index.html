@@ -106,7 +106,7 @@
           <label>생년월일 <input id="birth" type="date" required></label><label>참여자 구분 <select id="type" required><option value="">선택</option><option>장애 당사자</option><option>보호자</option><option>지역주민</option></select></label>
           <label class="wide">요청사항 <textarea id="note" rows="3" placeholder="이동지원, 의사소통 지원 등"></textarea></label>
         </div>
-        <section id="applicationFileBox" class="applicationFileBox hidden"><h3>신청서 파일 제출</h3><p id="applicationFileGuide"></p><a id="templateDownload" class="downloadLink" href="#" download>신청서 양식 다운로드</a><p id="templateMissing" class="fileWarning hidden">등록된 신청서 양식이 없습니다.</p><label>작성한 신청서 업로드 <input id="applicantFile" type="file" accept=".pdf,.hwp,.hwpx,.doc,.docx,.jpg,.jpeg,.png,.webp,.heic,.heif,.zip" multiple></label><p class="fileHint">신청서를 사진으로 찍었다면 최대 10장까지 한 번에 선택할 수 있습니다. 여러 파일은 ZIP으로 자동 묶이며, 직접 만든 ZIP 파일도 올릴 수 있습니다. 전체 10MB 이하</p><div id="applicationFileSelectionInfo" class="fileInfo">선택된 신청서 파일이 없습니다.</div></section>
+        <section id="applicationFileBox" class="applicationFileBox hidden"><h3>신청서 파일 제출</h3><p id="applicationFileGuide"></p><a id="templateDownload" class="downloadLink" href="#" download>신청서 양식 다운로드</a><p id="templateMissing" class="fileWarning hidden">등록된 신청서 양식이 없습니다.</p><label>신청서·증빙자료 파일 추가 <input id="applicantFile" type="file" accept=".pdf,.hwp,.hwpx,.doc,.docx,.jpg,.jpeg,.png,.webp,.heic,.heif,.zip" multiple></label><p class="fileHint" id="applicationFileHint">신청서와 증빙자료를 최대 10개까지 추가할 수 있습니다. 파일을 여러 번 나누어 선택해도 기존 목록에 추가됩니다. PDF·한글·워드·사진·ZIP 파일, 합계 10MB 이하. 파일은 각각의 원본으로 저장됩니다.</p><div id="applicationFileSelectionInfo" class="fileInfo">선택된 신청서 파일이 없습니다.</div></section>
         <div class="formActions"><button class="primary" id="goConsent" type="button">다음: 개인정보 동의</button></div>
       </section>
       <section id="applyStepGoogleForm" class="applyStep hidden"><div class="googleFormIntro"><h3>Google 신청서 작성</h3><p>아래 Google Form을 제출한 뒤 ‘설문 제출 확인’을 눌러 주세요. 화면이 작으면 새 창으로 열어 작성할 수 있습니다.</p></div><div class="googleFormFrameWrap"><iframe id="googleFormFrame" title="프로그램 추가 Google Form" loading="lazy"></iframe></div><a id="googleFormOpenNew" class="downloadLink" href="#" target="_blank" rel="noopener noreferrer">Google Form 새 창으로 열기 ↗</a><div class="googleFormVerification"><button id="verifyGoogleFormSubmission" class="primary" type="button">설문 제출 확인</button><p id="googleFormVerificationStatus" role="status" aria-live="polite">Google Form 제출 후 이 버튼을 눌러 확인해 주세요.</p></div><div class="formActions split"><button id="backGoogleForm" type="button">이전: 신청 정보</button><button class="primary" id="continueAfterGoogleForm" type="button" disabled>다음 단계</button></div></section><section id="applyStepConsent" class="applyStep hidden"><div class="consentIntro"><h3>개인정보 동의 확인</h3><p>항목별 처리 목적·수집 항목·보유기간을 확인한 뒤 동의 여부를 선택하고 전자서명을 입력해 주세요.</p><p class="consentPolicyLink"><a href='/privacy' rel='noopener noreferrer' target='_blank'>개인정보 처리방침 전체 보기 ↗</a></p><p class="minorConsentNotice">만 14세 미만 신청자는 법정대리인이 내용을 확인하고 동의해야 합니다. 법정대리인 확인 절차는 운영기관 <span data-policy="operatorName">000</span>(대표전화 <span data-policy="phone">000</span>)으로 문의해 주세요.</p></div><div id="consentItems" class="consentItems"></div><div class="signatureBlock"><label class="signatureField">전자서명 <input id="signature" placeholder="신청자 이름을 입력해 주세요"></label><p>서명일 <strong id="signatureDate"></strong></p></div><div class="formActions split"><button id="backInfo" type="button">이전</button><button class="primary" id="applySubmitButton" type="submit">동의 및 신청 완료</button></div></section>
@@ -154,12 +154,12 @@
   </dialog>
   <script src="./assets/supabase-js-2.min.js?v=20260825-26"></script>
   <script src="./supabase-config.js?v=20260728-9"></script>
-  <script src="./app.js?v=100"></script>
-  <script src="./application-file-upload.js?v=20260831-56"></script>
+  <script src="./app.js?v=20260915-101"></script>
+  <script src="./application-file-upload.js?v=20260915-101"></script>
   <script src="./program-fields-v66.js?v=20260903-68"></script>
   <script src="./enhancements.js?v=100"></script>
   <script src="./admin-workflow.js?v=20260901-65-copy-program"></script>
-  <script src="./auth.js?v=20260911-94"></script>
+  <script src="./auth.js?v=20260915-101"></script>
   <script src="./print-tools.js?v=20260827-39"></script>
   <script src="./manager-directory-v76.js?v=20260903-77"></script>
   <script src="./supabase-integration.js?v=20260911-94"></script>

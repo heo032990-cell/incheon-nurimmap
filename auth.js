@@ -251,9 +251,10 @@ function renderApplicants() {
     group.querySelector(".printRosterButton").addEventListener("click", () => printProgramRoster(program, programApplicants));
     programApplicants.forEach((applicant) => {
       const uploadedFile = applicant.uploadedForm;
-      const storedFileName = driveFileName(applicant, program, uploadedFile?.name);
+      const multipleFiles = /^__nurim_attachments_v101_\d+\.zip$/.test(uploadedFile?.name || "");
+      const storedFileName = multipleFiles ? "제출한 신청서·증빙자료" : driveFileName(applicant, program, uploadedFile?.name);
       const downloadArea = uploadedFile?.dataUrl
-        ? `<div class="submittedFile"><div><span>제출 신청서</span><strong>${esc(storedFileName)}</strong></div><a class="fileDownload" href="${uploadedFile.dataUrl}" download="${esc(storedFileName)}">신청서 다운로드</a></div>`
+        ? `<div class="submittedFile"><div><span>제출 신청서</span><strong>${esc(storedFileName)}</strong></div><a class="fileDownload" href="${uploadedFile.dataUrl}" ${multipleFiles ? 'target="_blank" rel="noopener"' : 'download="'+esc(storedFileName)+'"'}>${multipleFiles ? '첨부파일 모음 보기' : '신청서 다운로드'}</a></div>`
         : '<div class="submittedFile emptyFile"><span>제출된 신청서 파일이 없습니다.</span></div>';
       const consentProgram={...program,consentItems:applicant.baseConsentSnapshot?.length?applicant.baseConsentSnapshot:program.consentItems};
       const consentEntries = Object.entries(applicant.consentResponses || {});

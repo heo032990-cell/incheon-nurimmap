@@ -41,3 +41,5 @@ body>.topbar,body>#mainContent{box-sizing:border-box;width:calc(100% - 32px);max
 /* v92: wide activity lists have no disclosure control. */
 .activityCategoryTabs > .categoryToggle[hidden]{display:none!important}
 .activityCategoryTabs.compactCategories > .categoryToggle:not([hidden]){display:inline-flex;margin-left:auto}
+
+#applicationFileList{padding-left:24px;margin:12px 0}#applicationFileList li{padding:6px 0;overflow-wrap:anywhere}#applicationFileList li button{margin-left:12px;min-height:44px}#applicantFile{max-width:100%}
