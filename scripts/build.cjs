@@ -10,3 +10,5 @@ for(const file of fs.readdirSync(root,{withFileTypes:true})){
 for(const dir of ['assets','manual'])fs.cpSync(path.join(root,dir),path.join(out,dir),{recursive:true});
 console.log('Static release prepared; syntax checked; backend, tests and backups excluded.');
 
+
+fs.copyFileSync(path.join(out,"index.html"),path.join(out,"admin.html"));

@@ -13,7 +13,7 @@ const server=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.spli
   else if(route.request().url().includes('/auth/'))data={user:null,session:null};
   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
  });
- await page.goto(process.env.NURIM_TEST_URL||('http://127.0.0.1:'+server.address().port));await page.waitForFunction(()=>window.NurimSurvey);
+ await page.goto(process.env.NURIM_TEST_URL||('http://127.0.0.1:'+server.address().port));await page.waitForFunction(()=>window.NurimSurvey);await page.waitForTimeout(500);
  await page.evaluate(()=>{saveSession({role:'manager',name:'테스트 담당자',accountId:'manager-a',centerName:'기관 A'});applyAdminAccess();document.querySelector('#adminDialog').showModal();resetProgramForm();});
  assert.equal(await page.locator('#centerName').inputValue(),'기관 A');assert(await page.locator('#centerName').evaluate(e=>e.readOnly));
  await page.evaluate(()=>document.querySelector('#programForm').reset());await page.waitForTimeout(50);assert.equal(await page.locator('#centerName').inputValue(),'기관 A');
@@ -39,9 +39,9 @@ const server=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.spli
  await page.evaluate(()=>{document.querySelector('#nurimSurveyDialog').close();window.incheonSupabase.auth.getSession=async()=>({data:{session:{user:{id:'manager-a'},access_token:'test-only-token'}}});saveSession({role:'manager',name:'A',accountId:'manager-a',centerName:'기관 A'});applyAdminAccess();document.querySelector('#adminDialog').showModal();});
  await page.locator('[data-tab="surveyManage"]').click();
  const editor=page.locator('#surveyManage');await editor.locator('[data-action="new"]').click();await editor.locator('[data-action="add"]').click();
- await editor.locator('[data-field="type"]').selectOption('rank');await editor.locator('[data-action="addOption"]').click();await editor.locator('[data-action="addOption"]').click();
- await editor.locator('textarea[data-option="0"]').fill('A');await editor.locator('textarea[data-option="1"]').fill('B');await editor.locator('textarea[data-option="2"]').fill('C');await editor.locator('[data-field="rankCount"]').selectOption('2');
+ await editor.locator('.surveyQuestion:not(.surveyPageHeader) [data-field="type"]').selectOption('rank');await editor.locator('[data-action="addOption"]').click();await editor.locator('[data-action="addOption"]').click();
+ await editor.locator('textarea[data-option="0"]').fill('A');await editor.locator('textarea[data-option="1"]').fill('B');await editor.locator('textarea[data-option="2"]').fill('C');await editor.locator('.surveyQuestion:not(.surveyPageHeader) [data-field="rankCount"]').selectOption('2');
  await editor.locator('[data-action="preview"]').click();await frame.locator('h1').waitFor();assert.equal(await frame.locator('fieldset:not(.basic) select').count(),2);await page.locator('#nurimSurveyDialog > .dialogTitle button').click();
- await editor.locator('[data-field="type"]').selectOption('checkbox');await editor.locator('[data-field="selectionMode"]').selectOption('exact');await editor.locator('[data-field="selectionCount"]').fill('2');await editor.locator('[data-action="preview"]').click();await frame.locator('h1').waitFor();assert.equal(await frame.locator('.selectionHint').innerText(),'2개를 선택해 주세요.');
+ await editor.locator('.surveyQuestion:not(.surveyPageHeader) [data-field="type"]').selectOption('checkbox');await editor.locator('.surveyQuestion:not(.surveyPageHeader) [data-field="selectionMode"]').selectOption('exact');await editor.locator('.surveyQuestion:not(.surveyPageHeader) [data-field="selectionCount"]').fill('2');await editor.locator('[data-action="preview"]').click();await frame.locator('h1').waitFor();assert.equal(await frame.locator('.selectionHint').innerText(),'2개를 선택해 주세요.');
  console.log(JSON.stringify({passed:'institution reset/switch, disability combinations, signature blocking, rank count, exact checkbox validation, back navigation and answer preservation, mobile overflow, builder rank/checkbox configuration preview',pageErrors:errors,alerts}));assert.deepEqual(errors,[]);
  }finally{await browser?.close();server.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

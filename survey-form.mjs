@@ -7,6 +7,7 @@ let data,id=ticket?.id||crypto.randomUUID(),token=ticket?.token||crypto.randomUU
 const root=document.querySelector("main");
 async function call(action,body={}){const r=await fetch(window.INCHEON_SUPABASE.url+"/functions/v1/nurim-survey",{method:"POST",headers:{"Content-Type":"application/json",apikey:window.INCHEON_SUPABASE.publishableKey,Authorization:"Bearer "+window.NURIM_SURVEY_ANON_KEY},body:JSON.stringify({action,...body})});const d=await r.json();if(!r.ok||!d.ok)throw Object.assign(Error(d.error||"처리하지 못했습니다."),{code:d.code});return d;}
 function field(q){
+ if(q.type==='checkbox'&&q.options?.length===1&&q.options[0]==='동의합니다')q={...q,selectionMode:'any'};
  const req=q.required?" required":"",name="answer_"+q.id;
  const titleId=name+"_title",helpId=name+"_help",hintId=name+"_hint";
  const descriptions=[q.help?helpId:"",selectionHint(q)?hintId:""].filter(Boolean).join(" ");
@@ -25,7 +26,7 @@ function field(q){
 }
 function render(){
  if(!preview&&!application){root.textContent="프로그램 신청 화면에서 기본정보를 먼저 작성해 주세요.";return;}
- const s=data.schema;pageIndex=0;pages=surveyPages(s);
+ const s=data.schema;pages=surveyPages(s);pageIndex=preview?Math.min(pageIndex,pages.length-1):0;
  root.innerHTML='<h1>'+esc(s.title)+'</h1>'+(data.program?'<p>'+esc(data.program.title)+'</p>':"")+'<p>'+esc(s.description)+'</p>'+(preview?'<p class="notice">미리보기입니다. 입력 내용은 전송되지 않습니다.</p>':"")+'<form novalidate><p id="pageProgress" role="status"></p><div class="surveyPage" data-page="0"><fieldset class="basic"'+' hidden'+'><legend>신청 기본정보 · 한 번만 입력</legend><label>이름 *<input name="name" autocomplete="name" required maxlength="80"></label><label>생년월일 *<input name="birth" id="surveyBirth" type="date" required></label><label>연락처 *<input name="phone" type="tel" autocomplete="tel" required maxlength="24"></label></fieldset>'+pages[0].map(field).join("")+'</div>'+pages.slice(1).map((qs,i)=>'<div class="surveyPage" data-page="'+(i+1)+'" hidden>'+qs.map(field).join('')+'</div>').join('')+'<p role="status" id="status"></p><div class="pageNavigation"><button type="button" id="previousPage">이전</button><button type="button" id="nextPage">다음</button><button type="submit">'+(preview?"입력 내용 검증":"신청서 제출")+'</button></div></form>';
  root.querySelector("form").onsubmit=submit;
  root.querySelector("form").addEventListener('input',event=>{
@@ -38,7 +39,7 @@ function render(){
  });
  root.querySelector("#previousPage").onclick=()=>{if(!busy){if(pageIndex===0){parent.postMessage({type:'nurim-back'},location.origin);}else{pageIndex--;showPage();}}};
  root.querySelector("#nextPage").onclick=()=>{if(!busy&&checkPage()){pageIndex++;showPage();}};
- showPage();
+ showPage(!preview);
 }
 function values(f,questions){
  const answers={};for(const q of questions){
