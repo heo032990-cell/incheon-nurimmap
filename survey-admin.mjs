@@ -1,4 +1,4 @@
-import {esc,types,validateSchema,csv,printHTML,matchingSignature} from "./survey-core.mjs";
+import {esc,types,validateSchema,csv,printHTML,matchingSignature} from "./survey-core.mjs?v=105";
 const db=window.incheonSupabase;
 const flags=window.NURIM_FEATURES||{survey:true,charts:true,programAddress:true};
 let sessionGeneration=0,bindingRequest=0,activeQuestion=0,surveyRole="manager",centerChoice="",managerChoice="";

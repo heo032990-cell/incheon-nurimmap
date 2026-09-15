@@ -56,12 +56,20 @@ export function csv(schema,rows){
 }
 export function printHTML(s,record){
  const basic=record?'<div>이름: '+esc(record.name)+'</div><div>생년월일: '+esc(record.birth.replace(/(\d{4})-(\d{2})-(\d{2})/,"$1년 $2월 $3일"))+'</div><div>연락처: '+esc(record.phone)+'</div>':'<div>이름: __________________</div><div>생년월일: ______년 ___월 ___일</div><div>연락처: __________________</div>';
+ let pageNumber=1,questionNumber=0;
+ const pageDivider=(title,help)=>'<section class="surveyPageDivider"><h2>'+esc(pageNumber+'페이지'+(title?' · '+title:''))+'</h2>'+(help?'<p>'+esc(help)+'</p>':'')+'</section>';
  const items=s.questions.map((q,i)=>{
+  if(q.pageBreakBefore)pageNumber++;
+  const pageTitle=q.type==='notice'&&(String(q.id||'').startsWith('page_')||q.pageBreakBefore);
+  if(pageTitle)return pageDivider(q.label,q.help);
+  const divider=q.pageBreakBefore?pageDivider('',''):'';
+  if(q.type==='notice')return divider+'<section class="question wide surveyNotice"><strong>'+esc(q.label)+'</strong>'+(q.help?'<p>'+esc(q.help)+'</p>':'')+'</section>';
+  questionNumber++;
   const a=record?answerText(q,record.answers[q.id]):q.type==="date"?"______년 ___월 ___일":q.type==="consent"?"□ 동의   □ 미동의":q.options?.length?q.options.map((o,n)=>(q.type==="rank"?"("+ (n+1) +"순위) ":"□ ")+o).join("    "):q.type==="notice"?"":"________________________________________________________________";
   const long=q.type==="textarea"||q.help.length>70||q.label.length>45||(q.options||[]).join("").length>60||a.length>70;
-  return '<section class="question '+(long?"wide":"")+'"><strong>'+esc((i+1)+". "+q.label)+(q.required?" *":"")+'</strong>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+(selectionHint(q)?'<p>'+esc(selectionHint(q))+'</p>':'')+'<div class="answer">'+esc(a)+'</div></section>';
+  return divider+'<section class="question '+(long?"wide":"")+'"><strong>'+esc(questionNumber+". "+q.label)+(q.required?" *":"")+'</strong>'+(q.help?'<p>'+esc(q.help)+'</p>':"")+(selectionHint(q)?'<p>'+esc(selectionHint(q))+'</p>':'')+'<div class="answer">'+esc(a)+'</div></section>';
  }).join("");
- return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>'+esc(s.title)+'</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:Arial,"Malgun Gothic",sans-serif;color:#183b38;font-size:10pt;line-height:1.65}h1{font-size:19pt}p{white-space:pre-wrap;overflow-wrap:anywhere}.basic,.questions{display:flex;flex-wrap:wrap;gap:10px}.basic{padding:12px;border:1px solid #8ea9a3;font-size:9pt}.basic>div{flex:1 1 160px}.question{flex:1 1 45%;border-bottom:1px solid #a9bcb6;padding:10px 0;break-inside:avoid;min-width:0;overflow-wrap:anywhere}.question.wide{flex-basis:100%}.question p{font-size:9pt;margin:4px 0}.answer{white-space:pre-wrap;min-height:28px}.question:has(.answer:empty){break-inside:auto}@media print{button{display:none}}</style><body><button onclick="window.print()">인쇄 / PDF 저장</button><h1>'+esc(s.title)+'</h1><p>'+esc(s.description)+'</p><div class="basic">'+basic+'</div><div class="questions">'+items+'</div></body></html>';
+ return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>'+esc(s.title)+'</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font-family:Arial,"Malgun Gothic",sans-serif;color:#183b38;font-size:10pt;line-height:1.65}h1{font-size:19pt}p{white-space:pre-wrap;overflow-wrap:anywhere}.basic,.questions{display:flex;flex-wrap:wrap;gap:10px}.basic{padding:12px;border:1px solid #8ea9a3;font-size:9pt}.basic>div{flex:1 1 160px}.question{flex:1 1 45%;border-bottom:1px solid #a9bcb6;padding:10px 0;break-inside:avoid;min-width:0;overflow-wrap:anywhere}.question.wide{flex-basis:100%}.surveyPageDivider{flex:0 0 100%;width:100%;border-top:2px solid #507f72;margin-top:12px;padding:10px 0 2px;break-inside:avoid;break-after:avoid;page-break-after:avoid}.surveyPageDivider h2{font-size:12pt;margin:0 0 4px}.surveyPageDivider p{font-size:10pt;margin:0}.surveyNotice{break-after:avoid}.question p{font-size:9pt;margin:4px 0}.answer{white-space:pre-wrap;min-height:28px}.question:has(.answer:empty){break-inside:auto}@media print{button{display:none}}</style><body><button onclick="window.print()">인쇄 / PDF 저장</button><h1>'+esc(s.title)+'</h1><p>'+esc(s.description)+'</p><div class="basic">'+basic+'</div><div class="questions">'+items+'</div></body></html>';
 }
 
 export function surveyPages(schema){const pages=[[]];for(const q of schema.questions){if(q.pageBreakBefore)pages.push([]);pages.at(-1).push(q);}return pages;}

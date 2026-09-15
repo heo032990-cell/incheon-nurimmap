@@ -1,4 +1,4 @@
-import {esc,validateAnswers,surveyPages,selectionHint} from "./survey-core.mjs";
+import {esc,validateAnswers,surveyPages,selectionHint} from "./survey-core.mjs?v=105";
 const params=new URLSearchParams(location.search),preview=params.has("preview");
 const ticketKey='nurim-survey-ticket:'+params.get('program');
 let ticket=null;try{ticket=JSON.parse(sessionStorage.getItem(ticketKey)||'null');}catch{}

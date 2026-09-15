@@ -1,5 +1,5 @@
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
-const code=fs.readFileSync(new URL('../backend/google-apps-script-v101.gs',import.meta.url),'utf8');
+const code=fs.readFileSync(new URL('../backend/google-apps-script-v105.gs',import.meta.url),'utf8');
 const iter=a=>{let i=0;return {hasNext:()=>i<a.length,next:()=>a[i++]}};
 let seq=0;const registry=new Map();
 class Folder{constructor(name,parent){this.name=name;this.parent=parent;this.children=[];this.files=[];this.desc='';}getName(){return this.name}setName(n){this.name=n;return this}getDescription(){return this.desc}setDescription(s){this.desc=s;return this}getUrl(){return this.name}getFolders(){return iter(this.children)}getFoldersByName(n){return iter(this.children.filter(f=>f.name===n))}createFolder(n){let f=new Folder(n,this);this.children.push(f);return f}moveTo(p){if(this.parent)this.parent.children=this.parent.children.filter(f=>f!==this);this.parent=p;p.children.push(this);return this}getFiles(){return iter(this.files)}getFilesByName(n){return iter(this.files.filter(f=>f.name===n))}createFile(n,data){let f={name:n,data,getName(){return this.name},getUrl(){return this.name},setContent(v){this.data=v},getBlob(){return {getDataAsString:()=>this.data}}};this.files.push(f);return f}}

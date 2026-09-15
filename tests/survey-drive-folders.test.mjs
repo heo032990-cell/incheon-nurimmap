@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
-const code=fs.readFileSync(new URL('../backend/google-apps-script-v101.gs',import.meta.url),'utf8');const ctx={};vm.runInNewContext(code,ctx);assert(!code.includes('DocumentApp'));
+const code=fs.readFileSync(new URL('../backend/google-apps-script-v105.gs',import.meta.url),'utf8');const ctx={};vm.runInNewContext(code,ctx);assert(!code.includes('DocumentApp'));
 const iter=xs=>{let i=0;return {hasNext:()=>i<xs.length,next:()=>xs[i++]}};
 class Folder{constructor(name){this.name=name;this.children=[];this.description='';}getName(){return this.name}setName(n){this.name=n;return this}getDescription(){return this.description}setDescription(d){this.description=d;return this}getFolders(){return iter(this.children)}getFoldersByName(n){return iter(this.children.filter(f=>f.name===n))}createFolder(n){const f=new Folder(n);this.children.push(f);return f}moveTo(root){root.children.push(this);return this}}
 const root=new Folder('기관'),survey=new Folder('설문'),old=survey.createFolder('프로그램_id1'),answers=old.createFolder('작성된신청서');
