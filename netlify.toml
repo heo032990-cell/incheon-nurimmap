@@ -1,0 +1,3 @@
+[build]
+command = "npm test && node scripts/build.cjs"
+publish = "dist"

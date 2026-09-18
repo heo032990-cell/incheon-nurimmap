@@ -71,6 +71,8 @@
   }
 
   function applySettings() {
+    window.NurimPolicyContact = {operatorName: settingValue("operatorName"), phone: settingValue("phone")};
+    window.updateMinorConsentContact?.();
     document.querySelectorAll("[data-policy]").forEach((node) => { node.textContent = settingValue(node.dataset.policy); });
     document.querySelectorAll("[data-policy-email]").forEach((node) => {
       const email = String(settings.email || "").trim(); if (email && email !== "000") node.href = `mailto:${email}`; else node.removeAttribute("href");

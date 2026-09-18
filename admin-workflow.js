@@ -36,7 +36,7 @@
   const applicationStep = document.createElement("section");
   applicationStep.id = "programApplicationStep";
   applicationStep.className = "programWizardStep hidden";
-  applicationStep.innerHTML = '<div class="wizardStepTitle"><p class="smallLabel">2단계</p><h3 tabindex="-1">신청정보 받는 방법 설정</h3><p>개인정보 동의, 선택형 Google Form, 별도 신청서 파일 사용 여부를 정한 뒤 최종 저장해 주세요.</p></div>';
+  applicationStep.innerHTML = '<div class="wizardStepTitle"><p class="smallLabel">2단계</p><h3 tabindex="-1">신청 방법 설정</h3><p>기본 신청과 개인정보 동의로 접수합니다. 필요하면 추가 설문 또는 신청서 파일 제출을 선택하세요.</p></div>';
   applicationStep.append(consentBox, googleFormBox, fileBox);
   const backButton = document.createElement("button");
   backButton.id = "backProgramBasic";
@@ -58,9 +58,10 @@
   };
 
   function validateBasicStep() {
+    window.reconcileAccessibleDateInputs?.(basicGrid);
     const controls = [...basicGrid.querySelectorAll("input,select,textarea")].filter((control) => !control.disabled);
     for (const control of controls) {
-      if (!control.checkValidity()) { control.reportValidity(); control.focus(); return false; }
+      if (!control.validity.valid) { control.reportValidity(); return false; }
     }
     return true;
   }
@@ -80,6 +81,7 @@
   const fillProgramBeforeWorkflow = fillProgram;
   fillProgram = function fillProgramAndOpenRegistration(program) {
     fillProgramBeforeWorkflow(program);
+    window.reconcileAccessibleDateInputs?.(basicGrid);
     switchAdminTab("programCreate");
     window.setProgramRegistrationStep("basic", true);
   };

@@ -420,6 +420,7 @@
   function setDraftValue(selector, value, overwrite = false) {
     const control = document.querySelector(selector);
     if (!control || value === undefined || value === null || value === "") return false;
+    if (selector === "#schedule" && window.nurimApplyScheduleDraft) return window.nurimApplyScheduleDraft(String(value));
     if (!overwrite && String(control.value || "").trim()) return false;
     control.value = String(value);
     control.dispatchEvent(new Event("change", { bubbles: true }));

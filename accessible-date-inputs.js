@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  const reconciliations = new WeakMap();
   const currentYear = new Date().getFullYear();
   const option = (value, label = value) => { const item = document.createElement("option"); item.value = value; item.textContent = label; return item; };
   function enhance(input) {
@@ -30,9 +31,11 @@
       for (let value = 1; value <= count; value += 1) day.append(option(String(value).padStart(2, "0"), `${value}일`));
       day.value = Number(selected) <= count ? selected : "";
     }
+    let lastNativeValue = input.value;
     function syncNative() {
       const complete = Boolean(year.value && month.value && day.value);
       input.value = complete ? `${year.value}-${month.value}-${day.value}` : "";
+      lastNativeValue = input.value;
       syncValidation();
       // 연·월만 고르는 중에는 기존 화면에 change 이벤트를 보내 선택이 초기화되지 않게 한다.
       if (complete) {
@@ -41,6 +44,7 @@
       }
     }
     function syncSelects() {
+      lastNativeValue = input.value;
       const match = String(input.value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (match?.[1] && ![...year.options].some((item) => item.value === match[1])) year.append(option(match[1], `${match[1]}년`));
       year.value = match?.[1] || ""; month.value = match?.[2] || ""; rebuildDays(match?.[3] || "");
@@ -57,7 +61,8 @@
       if (enabled) input.focus(); else year.focus();
     }
     year.addEventListener("change", () => { rebuildDays(); syncNative(); }); month.addEventListener("change", () => { rebuildDays(); syncNative(); }); day.addEventListener("change", syncNative);
-    input.addEventListener("change", syncSelects); group.addEventListener("focusin", () => { const selected = year.value && month.value && day.value ? `${year.value}-${month.value}-${day.value}` : ""; if (input.value !== selected) syncSelects(); }); direct.addEventListener("click", () => setDirectMode(!group.classList.contains("isDirect")));
+    input.addEventListener("change", syncSelects); group.addEventListener("focusin", () => { if (input.value && input.value !== `${year.value}-${month.value}-${day.value}`) syncSelects(); }); direct.addEventListener("click", () => setDirectMode(!group.classList.contains("isDirect")));
+    reconciliations.set(input,()=>{if(input.value!==lastNativeValue)syncSelects();});
     input.classList.add("scrollDateNative"); input.before(group); group.append(year, month, day, direct, input); syncSelects();
     input.tabIndex=-1;input.setAttribute('aria-hidden','true');direct.setAttribute('aria-label',title+' 직접 입력으로 전환');
     input.addEventListener('invalid',event=>{if(!group.classList.contains('isDirect')){event.preventDefault();year.focus();}});
@@ -65,7 +70,9 @@
     input.form?.addEventListener('reset', () => setTimeout(syncSelects, 0));
   }
   function enhanceAll(scope = document) { if (scope.matches?.('input[type="date"]')) enhance(scope); scope.querySelectorAll?.('input[type="date"]').forEach(enhance); }
+  window.reconcileAccessibleDateInputs = (scope=document) => scope.querySelectorAll('input[type="date"]').forEach(input=>reconciliations.get(input)?.());
   window.syncAccessibleDateInputs = () => document.querySelectorAll('input[type="date"][data-scroll-date-ready]').forEach((input) => input.dispatchEvent(new Event("change")));
   enhanceAll();
   new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach((node) => { if (node instanceof Element) enhanceAll(node); }))).observe(document.body, { childList: true, subtree: true });
 })();
+

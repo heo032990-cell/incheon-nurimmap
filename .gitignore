@@ -9,3 +9,6 @@ output/
 tmp/
 *.zip
 *backup*.json
+dist/
+
+artifacts/

@@ -33,10 +33,12 @@ let programPage = 1;
 let lastProgramFilterKey = "";
 
 function programColumnsForViewport() {
-  if (window.innerWidth >= 1440) return 4;
-  if (window.innerWidth >= 900) return 3;
-  if (window.innerWidth >= 620) return 2;
-  return 1;
+  const box=document.querySelector('#programs');
+  const width=box?.clientWidth||window.innerWidth;
+  const minimum=20*parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const columns=Math.max(1,Math.min(4,Math.floor((width+20)/(minimum+20))));
+  if(box)box.style.gridTemplateColumns='repeat('+columns+',minmax(0,1fr))';
+  return columns;
 }
 
 function renderProgramPagination(totalPages) {
@@ -55,7 +57,9 @@ function renderProgramPagination(totalPages) {
   const moveTo = (page) => {
     programPage = Math.min(totalPages, Math.max(1, page));
     renderPrograms();
-    document.querySelector("#resultSummary").scrollIntoView({ behavior: "smooth", block: "start" });
+    const heading = document.querySelector("#programResultsTitle");
+    heading.focus();
+    heading.scrollIntoView({ block: "start" });
   };
   const makeButton = (label, page, options = {}) => {
     const button = document.createElement("button");
@@ -179,9 +183,10 @@ function renderPrograms() {
     const publicTemplate = program.formEnabled && program.formTemplate?.dataUrl ? program.formTemplate : null;
     const card = document.createElement("article");
     card.className = "card";
+    card.dataset.programId = program.id;
     card.innerHTML = `
       <div class="cardTop"><div class="badgeGroup"><span class="badge ${status.key}">${status.label}</span>${selectionBadge}</div><span class="count">${countText}</span></div>
-      <div class="programLabels"><p class="centerName"><span aria-hidden="true">●</span> ${esc(program.centerName)}</p><div class="programTagGroup"><span class="categoryTag">${esc(program.activityCategory || "기타")}</span><span class="ageTag">${esc(program.ageGroup === "전연령" ? "전연령·가족" : program.ageGroup)}</span></div></div>
+      <div class="programLabels"><p class="centerName"><span aria-hidden="true">●</span> ${esc(program.centerName)}</p><div class="programTagGroup"><span class="categoryTag">${esc(program.activityCategory || "기타")}</span><span class="ageTag">${esc(program.ageGroup)}</span></div></div>
       <h2>${esc(program.title)}</h2>
       <div class="programContentBox"><span>프로그램 내용</span><div tabindex="0" role="region" aria-label="${esc(program.title)} 프로그램 내용, 스크롤하여 전체 내용 보기">${programDescriptionHtml(program.description)}</div></div>
       <dl class="meta">
@@ -397,3 +402,4 @@ document.querySelector("#resetProgram").addEventListener("click", () => {
   updatePromotionImageInfo();
 });
 updatePromotionImageInfo();
+

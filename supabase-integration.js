@@ -115,6 +115,10 @@
     }
     return normalizeProgram({
       id: row.id,
+      surveyId: row.survey_id || null,
+      publicNumber: row.public_number,
+      publicYear: row.public_year,
+      publicCenter: row.public_center,
       createdAt: row.created_at || null,
       centerId: row.center_id,
       centerName: row.center_name,
@@ -279,6 +283,7 @@
       return {
         id: row.id,
         programId: row.program_id,
+        surveyResponse: row.survey_response === true,
         name: row.applicant_name,
         phone: row.phone,
         birth: row.birth_date,
@@ -286,9 +291,15 @@
         note: row.note || "",
         privacyAgree: row.privacy_agree,
         consentResponses: row.consent_responses || {},
+        baseConsentSnapshot: row.base_consent_snapshot || [],
         applicationResponses: {},
         consentVersion: row.consent_version || "",
         signature: row.signature || "",
+        guardianRequired: row.guardian_required === true,
+        guardianName: row.guardian_name || "",
+        guardianSignature: row.guardian_signature || "",
+        guardianAgreedAt: row.guardian_agreed_at || "",
+        guardianConsentText: row.guardian_consent_text || "",
         privacyAgreedAt: row.privacy_agreed_at || "",
         googleFormConfirmedAt: row.google_form_confirmed_at || "",
         createdAt: row.created_at,
@@ -304,11 +315,11 @@
         driveError: row.drive_error || "",
         driveFolderUrl: row.drive_folder_url || "",
         driveRosterUrl: row.drive_roster_sheet_url || "",
-        uploadedForm: row.uploaded_file_path ? {
+        uploadedForm: (row.uploaded_file_path || row.drive_uploaded_file_url) ? {
           name: row.uploaded_file_name || "제출 신청서",
           type: row.uploaded_file_type || "application/octet-stream",
           size: row.uploaded_file_size || 0,
-          dataUrl: downloadUrl,
+          dataUrl: row.drive_uploaded_file_url || downloadUrl,
           storagePath: row.uploaded_file_path
         } : null
       };
@@ -544,6 +555,7 @@
     const promotion = promotions[0] || { path: null, name: null };
     const programRow = {
       id: program.id,
+      survey_id: program.surveyId || null,
       center_id: centerId,
       center_name: program.centerName,
       title: program.title,
@@ -582,6 +594,7 @@
     };
 
     if (currentProfile?.role === "manager") programRow.manager_id = currentUser.id;
+    else if (program.surveyId) programRow.manager_id = program.managerId || currentUser.id;
     const { error } = await db.from("programs").upsert(programRow);
     if (error) throw error;
   }
@@ -1000,6 +1013,8 @@
       alert("온라인 프로그램 정보가 아직 준비되지 않았습니다. 관리자에게 문의해 주세요.");
       return;
     }
+    if (!window.NurimGuardian?.validate()) return;
+    const guardian = window.NurimGuardian.collect();
     const useConsent = program.consentEnabled && activeConsentItems(program).length > 0;
     let consentResponses = {};
     let signature = "";
@@ -1035,6 +1050,7 @@
       }
     }
 
+    if (!validateApplicationSignature()) return;
     if (applicationSubmitting) return;
     setApplicationSubmitting_(true);
     try {
@@ -1070,8 +1086,12 @@
       application_responses: {},
       privacy_agree: useConsent,
       consent_responses: consentResponses,
+      base_consent_snapshot: useConsent ? activeConsentItems(program) : [],
       consent_version: useConsent ? `${globalConsentVersion}:${program.privacyRetentionYears}years` : "none",
       signature: signature || null,
+      guardian_name: guardian?.name || null,
+      guardian_signature: guardian?.signature || null,
+      guardian_agreed_at: guardian ? now : null,
       privacy_agreed_at: useConsent ? now : null,
       google_form_confirmed_at: program.googleFormUrl ? (window.currentSurveyVerification?.submittedAt || now) : null,
       survey_token: program.googleFormUrl ? (window.currentSurveyVerification?.token || null) : null,
@@ -1115,6 +1135,8 @@
     pendingRemoteProgramSave = {
       editingId,
       existingIds: new Set(programs.map((program) => program.id)),
+      surveyId: window.NurimSurvey?.selected() || null,
+      surveyOwner: window.NurimSurvey?.selection()?.owner_id || null,
       title: document.querySelector("#programTitle").value.trim(),
       startDate: document.querySelector("#startDate").value,
       endDate: document.querySelector("#endDate").value,
@@ -1150,6 +1172,8 @@
           savedProgram.centerName = currentProfile.centers?.name || savedProgram.centerName;
           localStorage.setItem(keys.programs, JSON.stringify(programs));
         }
+        savedProgram.surveyId = pending.surveyId;
+        if (currentProfile?.role === "super" && pending.surveyId && pending.surveyOwner && !pending.editingId) savedProgram.managerId = pending.surveyOwner;
         await upsertProgram(savedProgram);
         await saveGoogleFormVerificationConfig(savedProgram.id, pending.formVerification);
         await loadPublicPrograms();
@@ -1294,6 +1318,7 @@
     dialog.querySelector("#editApplicantBirth").value = applicant.birth || "";
     dialog.querySelector("#editApplicantType").value = applicant.type || "지역주민";
     dialog.querySelector("#editApplicantNote").value = applicant.note || "";
+    ['#editApplicantType','#editApplicantNote'].forEach(id=>{const el=dialog.querySelector(id);el.disabled=applicant.surveyResponse;el.closest('label').hidden=applicant.surveyResponse;});
     dialog.showModal();
   }
 
@@ -1314,13 +1339,13 @@
       drive_sync_status: "pending",
       drive_error: null
     };
+    if(applicants.find(a=>a.id===applicationId)?.surveyResponse){changes.participant_type="";changes.note=null;}
     const submit = event.submitter;
     if (submit) submit.disabled = true;
     try {
       const { error } = await db.from("applications").update(changes).eq("id", applicationId);
       if (error) throw error;
-      const { data: driveData, error: driveError } = await db.functions.invoke("swift-processor", { body: { applicationId, force: true } });
-      if (driveError) throw driveError;
+      await syncApplicationToDrive(applicationId,true);
       document.querySelector("#applicationEditDialog").close();
       await loadApplications();
       renderAll();
@@ -1331,9 +1356,14 @@
       if (submit) submit.disabled = false;
     }
   }
-  async function syncApplicationToDrive(applicationId, force = false) {
-    const { error } = await db.functions.invoke("swift-processor", { body: { applicationId, force } });
-    if (error) throw error;
+  async function syncApplicationToDrive(applicationId, force = false, identityOverride=null) {
+    const app=applicants.find(a=>a.id===applicationId);
+    const lookup=latestLookupRows.find(a=>a.application_id===applicationId);
+    const integrated=app?.surveyResponse || (lookup && !lookup.participant_type && !lookup.note);
+    const body=integrated?{action:'sync',applicationId,force,identity:force?null:(identityOverride||lookupIdentity())}:{applicationId,force};
+    if(integrated){await window.NurimSurvey.api('sync',body);return;}
+    const {data,error}=await db.functions.invoke('swift-processor',{body});
+    if(error||!data?.ok)throw error||new Error(data?.error||'Google 갱신을 확인하지 못했습니다.');
   }
 
   async function deleteApplication(applicant) {
@@ -1432,17 +1462,21 @@
     const dialog = ensureSelfEditDialog(); dialog.querySelector("#selfEditApplicationId").value = id;
     dialog.querySelector("#selfEditName").value = item.applicant_name || ""; dialog.querySelector("#selfEditPhone").value = "";
     dialog.querySelector("#selfEditBirth").value = item.birth_date || ""; dialog.querySelector("#selfEditType").value = item.participant_type || "지역주민";
-    dialog.querySelector("#selfEditNote").value = item.note || ""; dialog.showModal();
+    dialog.querySelector('#selfEditNote').value = item.note || '';
+    const basicOnly=!item.participant_type&&!item.note;
+    ['#selfEditType','#selfEditNote'].forEach(id=>{const el=dialog.querySelector(id);el.disabled=basicOnly;el.closest('label').hidden=basicOnly;});
+    dialog.showModal();
   }
   async function saveSelfApplicationEdit(event) {
     event.preventDefault(); const identity = lookupIdentity(); const button = event.submitter; if (button) button.disabled = true;
     try {
       const applicationId = document.querySelector("#selfEditApplicationId").value;
+      const newName=document.querySelector('#selfEditName').value.trim(),newBirth=document.querySelector('#selfEditBirth').value,newPhone=document.querySelector('#selfEditPhone').value.trim();
       const { error } = await db.rpc("update_my_application", { p_application_id: applicationId, p_name: identity.name, p_birth_date: identity.birth,
         p_phone_last4: identity.last4, p_new_name: document.querySelector("#selfEditName").value.trim(), p_new_phone: document.querySelector("#selfEditPhone").value.trim(),
-        p_new_birth_date: document.querySelector("#selfEditBirth").value, p_new_participant_type: document.querySelector("#selfEditType").value,
-        p_new_note: document.querySelector("#selfEditNote").value.trim() });
-      if (error) throw error; await syncApplicationToDrive(applicationId, false); document.querySelector("#selfApplicationEditDialog").close();
+        p_new_birth_date: document.querySelector("#selfEditBirth").value, p_new_participant_type: document.querySelector("#selfEditType").disabled ? "" : document.querySelector("#selfEditType").value,
+        p_new_note: document.querySelector("#selfEditNote").disabled ? null : document.querySelector("#selfEditNote").value.trim() });
+      if (error) throw error; await syncApplicationToDrive(applicationId, false, {name:newName,birth:newBirth,last4:newPhone?newPhone.replace(/\D/g,"").slice(-4):identity.last4}); document.querySelector("#selfApplicationEditDialog").close();
       document.querySelector("#lookupName").value = newName; document.querySelector("#lookupBirth").value = newBirth;
       if (newPhone) document.querySelector("#lookupPhoneLast4").value = newPhone.replace(/\D/g, "").slice(-4);
       alert("신청내용이 수정되었고 수정 일시가 기록되었습니다."); document.querySelector("#applicationLookupForm").requestSubmit();
@@ -1582,4 +1616,6 @@
     if (await loadPublicApplicationCounts()) renderPrograms();
   }, 30000);
 })();
+
+
 
